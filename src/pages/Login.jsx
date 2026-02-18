@@ -1,0 +1,66 @@
+import React, { useState } from 'react';
+import { loginUser } from '../services/authService';
+import { useNavigate, Link } from 'react-router-dom';
+import { toast } from 'react-toastify';
+
+// Admin shortcut: maps to real Firebase credentials
+const ADMIN_EMAIL = 'admin@todoapp.local';
+const ADMIN_PASSWORD = 'admin1'; // Firebase min 6 chars; user types 'admin'
+
+const Login = () => {
+    const [identifier, setIdentifier] = useState('');
+    const [password, setPassword] = useState('');
+    const navigate = useNavigate();
+
+    const handleLogin = async (e) => {
+        e.preventDefault();
+        try {
+            // Allow shorthand: username "admin" with password "admin"
+            const isAdmin = identifier.trim() === 'admin';
+            const email = isAdmin ? ADMIN_EMAIL : identifier.trim();
+            const pwd = isAdmin && password === 'admin' ? ADMIN_PASSWORD : password;
+            await loginUser(email, pwd);
+            toast.success('ยินดีต้อนรับกลับมา!');
+            navigate('/');
+        } catch (error) {
+            toast.error('อีเมลหรือรหัสผ่านไม่ถูกต้อง');
+        }
+    };
+
+    return (
+        <div className="auth-wrapper">
+            <div className="glass-panel auth-card">
+                <h2>🔐 เข้าสู่ระบบ</h2>
+                <form onSubmit={handleLogin} className="auth-form">
+                    <input
+                        type="text"
+                        placeholder="อีเมล หรือ username"
+                        className="input-field"
+                        value={identifier}
+                        onChange={(e) => setIdentifier(e.target.value)}
+                        required
+                        autoComplete="username"
+                    />
+                    <input
+                        type="password"
+                        placeholder="รหัสผ่าน"
+                        className="input-field"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        required
+                        autoComplete="current-password"
+                    />
+                    <button type="submit" className="btn">เข้าสู่ระบบ</button>
+                </form>
+                <p style={{ marginTop: '1rem', fontSize: '0.85rem', opacity: 0.6 }}>
+                    💡 Admin: username <strong>admin</strong> / password <strong>admin</strong>
+                </p>
+                <p style={{ marginTop: '0.5rem', fontSize: '0.9rem' }}>
+                    ยังไม่มีบัญชี? <Link to="/register">สมัครสมาชิก</Link>
+                </p>
+            </div>
+        </div>
+    );
+};
+
+export default Login;
