@@ -53,7 +53,7 @@ const Login = () => {
                     <button type="submit" className="btn">เข้าสู่ระบบ</button>
                 </form>
                 <p style={{ marginTop: '1rem', fontSize: '0.85rem', opacity: 0.6 }}>
-                    💡 Admin: username <strong>admin</strong> / password <strong>admin</strong>
+                    {/* 💡 Admin: username <strong>admin</strong> / password <strong>admin</strong> */}
                 </p>
                 <p style={{ marginTop: '0.5rem', fontSize: '0.9rem' }}>
                     ยังไม่มีบัญชี? <Link to="/register">สมัครสมาชิก</Link>
