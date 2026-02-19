@@ -9,6 +9,7 @@ import {
     deleteTask,
     updateTask,
     updateTaskOrder,
+    subscribeToCategories,
 } from '../services/taskService';
 import { logoutUser } from '../services/authService';
 import { toast } from 'react-toastify';
@@ -179,11 +180,12 @@ const EditModal = ({ task, onClose, onSave }) => {
     const [title, setTitle] = useState(task.title || '');
     const [dueDate, setDueDate] = useState(task.dueDate || '');
     const [dueTime, setDueTime] = useState(task.dueTime || '');
+    const [categoryId, setCategoryId] = useState(task.categoryId || '');
 
     const handleSubmit = (e) => {
         e.preventDefault();
         if (!title.trim()) return;
-        onSave(task.id, { title: title.trim(), dueDate, dueTime });
+        onSave(task.id, { title: title.trim(), dueDate, dueTime, categoryId });
     };
 
     return (
@@ -198,6 +200,12 @@ const EditModal = ({ task, onClose, onSave }) => {
                         placeholder="ชื่องาน..."
                         autoFocus
                     />
+                    <select className="input-field" value={categoryId} onChange={(e) => setCategoryId(e.target.value)}>
+                        <option value="">ไม่มีหมวดหมู่</option>
+                        {categories.map((c) => (
+                            <option key={c.id} value={c.id}>{c.name}</option>
+                        ))}
+                    </select>
                     <div style={{ display: 'flex', gap: '0.5rem' }}>
                         <input type="date" className="input-field" value={dueDate} onChange={(e) => setDueDate(e.target.value)} style={{ flex: 1 }} />
                         <input type="time" className="input-field" value={dueTime} onChange={(e) => setDueTime(e.target.value)} style={{ flex: 1 }} />
@@ -213,7 +221,8 @@ const EditModal = ({ task, onClose, onSave }) => {
 };
 
 // ─── Sortable Task Item ───────────────────────────────────────────────────────
-const SortableTaskItem = ({ task, nowMs, onToggle, onDelete, onEdit }) => {
+const SortableTaskItem = ({ task, categories, nowMs, onToggle, onDelete, onEdit }) => {
+    const category = categories?.find(c => c.id === task.categoryId);
     const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: task.id });
 
     const style = {
@@ -244,6 +253,12 @@ const SortableTaskItem = ({ task, nowMs, onToggle, onDelete, onEdit }) => {
                 <div className="task-info">
                     <div className={`task-title${task.completed ? ' done' : ''}`}>
                         {task.title}
+                        {category && (
+                            <span className="category-tag" style={{ background: category.color + '20', color: category.color, border: `1px solid ${category.color}40` }}>
+                                <span className="category-dot" style={{ background: category.color }} />
+                                {category.name}
+                            </span>
+                        )}
                         <ExpirationBadge task={task} nowMs={nowMs} />
                     </div>
                     <div className="task-meta">
@@ -272,6 +287,9 @@ const Dashboard = () => {
     const [newTaskTitle, setNewTaskTitle] = useState('');
     const [newTaskDate, setNewTaskDate] = useState('');
     const [newTaskTime, setNewTaskTime] = useState('');
+    const [newCategoryId, setNewCategoryId] = useState('');
+    const [categories, setCategories] = useState([]);
+    const [categoryFilterId, setCategoryFilterId] = useState('all');
     const [timeLimited, setTimeLimited] = useState(false);
     const [expirationDate, setExpirationDate] = useState('');
     const [expirationTime, setExpirationTime] = useState('');
@@ -315,7 +333,11 @@ const Dashboard = () => {
         } else {
             unsubscribe = subscribeToTasks(user, setTasks);
         }
-        return () => unsubscribe && unsubscribe();
+        const unsubCat = subscribeToCategories(user, setCategories);
+        return () => {
+            unsubscribe && unsubscribe();
+            unsubCat();
+        };
     }, [user, userData]);
 
     const handlePeriodChange = (p) => { setPeriod(p); setAnchor(isoToday()); };
@@ -339,12 +361,14 @@ const Dashboard = () => {
                 dueDate: newTaskDate || isoToday(),
                 dueTime: newTaskTime || isoNow(),
                 ownerNickname: userData?.nickname || '',
+                categoryId: newCategoryId,
                 expiresAt,
                 expirationMode: timeLimited ? expirationMode : null,
             }, user);
             setNewTaskTitle('');
             setNewTaskDate('');
             setNewTaskTime('');
+            setNewCategoryId('');
             setTimeLimited(false);
             setExpirationDate('');
             setExpirationTime('');
@@ -409,11 +433,11 @@ const Dashboard = () => {
     // Graph always shows total of periodFiltered (ignores status filter)
     const graphTasks = periodFiltered;
 
-    // List further filtered by status
+    // List further filtered by status and category
     const filteredTasks = periodFiltered.filter((task) => {
-        if (filter === 'completed') return task.completed;
-        if (filter === 'active') return !task.completed;
-        return true;
+        const matchStatus = filter === 'all' || (filter === 'completed' ? task.completed : !task.completed);
+        const matchCategory = categoryFilterId === 'all' || task.categoryId === categoryFilterId;
+        return matchStatus && matchCategory;
     });
 
     // ── Analytics (graph always based on total, not filtered) ─────────────────
@@ -423,7 +447,7 @@ const Dashboard = () => {
         labels: ['เสร็จแล้ว', 'ยังค้างอยู่'],
         datasets: [{
             data: [graphCompleted, graphTotal - graphCompleted],
-            backgroundColor: ['#00b894', '#dfe6e9'],
+            backgroundColor: ['#00b894', '#bedbf5e3'],
             borderWidth: 0,
         }],
     };
@@ -448,7 +472,7 @@ const Dashboard = () => {
                             🛡️ Admin
                         </Link>
                     )}
-                    <Link to="/profile" className="btn" style={{ background: 'rgba(255,255,255,0.08)', textDecoration: 'none' }}>
+                    <Link to="/profile" className="btn" style={{ background: 'rgba(59, 184, 147, 1)', textDecoration: 'none' }}>
                         👤 โปรไฟล์
                     </Link>
                     <button onClick={logoutUser} className="btn" style={{ background: 'var(--danger-color)' }}>
@@ -483,6 +507,17 @@ const Dashboard = () => {
                                 onChange={(e) => setNewTaskTime(e.target.value)}
                                 title="เวลาครบกำหนด"
                             />
+                            {/* <select
+                                className="add-task-date"
+                                value={newCategoryId}
+                                onChange={(e) => setNewCategoryId(e.target.value)}
+                                style={{ width: 'auto', minWidth: '100px' }}
+                            >
+                                <option value="">🏷️ หมวดหมู่</option>
+                                {categories.map((c) => (
+                                    <option key={c.id} value={c.id}>{c.name}</option>
+                                ))}
+                            </select> */}
                             <button type="submit" className="btn">+ เพิ่ม</button>
                         </div>
 
@@ -571,6 +606,26 @@ const Dashboard = () => {
                         ))}
                     </div>
 
+                    {/* Category Filter Bar */}
+                    <div className="category-filter-bar">
+                        <button
+                            className={`category-filter-btn ${categoryFilterId === 'all' ? 'active' : ''}`}
+                            onClick={() => setCategoryFilterId('all')}
+                        >
+                            ทั้งหมด
+                        </button>
+                        {categories.map((cat) => (
+                            <button
+                                key={cat.id}
+                                className={`category-filter-btn ${categoryFilterId === cat.id ? 'active' : ''}`}
+                                onClick={() => setCategoryFilterId(cat.id)}
+                            >
+                                <div className="category-dot" style={{ background: cat.color }} />
+                                {cat.name}
+                            </button>
+                        ))}
+                    </div>
+
                     {/* Task List */}
                     {filteredTasks.length === 0 ? (
                         <div className="empty-state">
@@ -589,6 +644,7 @@ const Dashboard = () => {
                                         <SortableTaskItem
                                             key={task.id}
                                             task={task}
+                                            categories={categories}
                                             nowMs={nowMs}
                                             onToggle={handleToggle}
                                             onDelete={handleDelete}

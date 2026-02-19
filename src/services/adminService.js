@@ -121,6 +121,18 @@ export const deleteTaskAdmin = async (taskId) => {
   await deleteDoc(doc(db, TASKS_COLLECTION, taskId));
 };
 
+const CATEGORIES_COLLECTION = "categories";
+
+export const subscribeToAllCategories = (callback) => {
+  const q = query(
+    collection(db, CATEGORIES_COLLECTION),
+    orderBy("createdAt", "desc"),
+  );
+  return onSnapshot(q, (snap) => {
+    callback(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+  });
+};
+
 /**
  * Persist new task order for admin reordering.
  */

@@ -13,7 +13,13 @@ import {
     deleteTaskAdmin,
     updateUserOrder,
     updateTaskOrderAdmin,
+    subscribeToAllCategories,
 } from '../services/adminService';
+import {
+    addCategory,
+    updateCategory,
+    deleteCategory,
+} from '../services/taskService';
 import {
     DndContext,
     closestCenter,
@@ -181,11 +187,12 @@ const EditUserModal = ({ user, onClose, onSave }) => {
     );
 };
 
-const EditTaskModal = ({ task, users, onClose, onSave }) => {
+const EditTaskModal = ({ task, users, categories, onClose, onSave }) => {
     const [title, setTitle] = useState(task.title || '');
     const [dueDate, setDueDate] = useState(task.dueDate || '');
     const [completed, setCompleted] = useState(task.completed || false);
     const [ownerId, setOwnerId] = useState(task.ownerId || '');
+    const [categoryId, setCategoryId] = useState(task.categoryId || '');
     const [loading, setLoading] = useState(false);
 
     const handleSubmit = async (e) => {
@@ -197,6 +204,7 @@ const EditTaskModal = ({ task, users, onClose, onSave }) => {
             dueDate,
             completed,
             ownerId,
+            categoryId,
             ownerEmail: owner?.email || task.ownerEmail,
             ownerNickname: owner?.nickname || task.ownerNickname,
         });
@@ -211,6 +219,15 @@ const EditTaskModal = ({ task, users, onClose, onSave }) => {
                     <div>
                         <label className="modal-label">ชื่องาน</label>
                         <input className="input-field" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="ชื่องาน" required />
+                    </div>
+                    <div>
+                        <label className="modal-label">หมวดหมู่</label>
+                        <select className="input-field" value={categoryId} onChange={(e) => setCategoryId(e.target.value)}>
+                            <option value="">ไม่มีหมวดหมู่</option>
+                            {categories.map((c) => (
+                                <option key={c.id} value={c.id}>{c.name}</option>
+                            ))}
+                        </select>
                     </div>
                     <div>
                         <label className="modal-label">เจ้าของ</label>
@@ -238,10 +255,11 @@ const EditTaskModal = ({ task, users, onClose, onSave }) => {
     );
 };
 
-const AddTaskModal = ({ users, onClose, onSave }) => {
+const AddTaskModal = ({ users, categories, onClose, onSave }) => {
     const [title, setTitle] = useState('');
     const [dueDate, setDueDate] = useState('');
     const [ownerId, setOwnerId] = useState(users[0]?.uid || '');
+    const [categoryId, setCategoryId] = useState('');
     const [loading, setLoading] = useState(false);
 
     const handleSubmit = async (e) => {
@@ -249,7 +267,7 @@ const AddTaskModal = ({ users, onClose, onSave }) => {
         if (!title.trim()) return;
         setLoading(true);
         const owner = users.find((u) => u.uid === ownerId);
-        await onSave({ title: title.trim(), dueDate, ownerId, ownerEmail: owner?.email || '', ownerNickname: owner?.nickname || '' });
+        await onSave({ title: title.trim(), dueDate, ownerId, categoryId, ownerEmail: owner?.email || '', ownerNickname: owner?.nickname || '' });
         setLoading(false);
     };
 
@@ -261,6 +279,15 @@ const AddTaskModal = ({ users, onClose, onSave }) => {
                     <div>
                         <label className="modal-label">ชื่องาน</label>
                         <input className="input-field" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="ชื่องาน..." autoFocus required />
+                    </div>
+                    <div>
+                        <label className="modal-label">หมวดหมู่</label>
+                        <select className="input-field" value={categoryId} onChange={(e) => setCategoryId(e.target.value)}>
+                            <option value="">ไม่มีหมวดหมู่</option>
+                            {categories.map((c) => (
+                                <option key={c.id} value={c.id}>{c.name}</option>
+                            ))}
+                        </select>
                     </div>
                     <div>
                         <label className="modal-label">มอบหมายให้</label>
@@ -284,6 +311,53 @@ const AddTaskModal = ({ users, onClose, onSave }) => {
     );
 };
 
+const CategoryModal = ({ category, onClose, onSave }) => {
+    const [name, setName] = useState(category?.name || '');
+    const [color, setColor] = useState(category?.color || '#6c5ce7');
+    const [loading, setLoading] = useState(false);
+
+    const colors = ['#68962c', '#d63031', '#00b894', '#0984e3', '#fdcb6e', '#e17055', '#6c5ce7', '#00cec9', '#fab1a0', '#a29bfe'];
+
+    const handleSubmit = async (e) => {
+        e.preventDefault();
+        if (!name.trim()) return;
+        setLoading(true);
+        await onSave(category?.id, { name: name.trim(), color });
+        setLoading(false);
+    };
+
+    return (
+        <div className="modal-overlay" onClick={onClose}>
+            <div className="modal-box" onClick={(e) => e.stopPropagation()}>
+                <h3>{category ? '✏️ แก้ไขหมวดหมู่' : '➕ เพิ่มหมวดหมู่'}</h3>
+                <form className="modal-form" onSubmit={handleSubmit}>
+                    <div>
+                        <label className="modal-label">ชื่อหมวดหมู่</label>
+                        <input className="input-field" value={name} onChange={(e) => setName(e.target.value)} placeholder="ชื่อหมวดหมู่..." autoFocus required />
+                    </div>
+                    <div>
+                        <label className="modal-label">เลือกสี</label>
+                        <div className="category-color-picker">
+                            {colors.map((c) => (
+                                <div
+                                    key={c}
+                                    className={`color-option ${color === c ? 'active' : ''}`}
+                                    style={{ background: c }}
+                                    onClick={() => setColor(c)}
+                                />
+                            ))}
+                        </div>
+                    </div>
+                    <div className="modal-actions">
+                        <button type="button" className="btn btn-ghost" onClick={onClose}>ยกเลิก</button>
+                        <button type="submit" className="btn" disabled={loading}>{loading ? '⏳ กำลังบันทึก...' : '💾 บันทึก'}</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    );
+};
+
 // ─── Admin Panel ──────────────────────────────────────────────────────────────
 const PERIODS = [
     { key: 'all', label: 'ทั้งหมด' },
@@ -297,6 +371,7 @@ const AdminPanel = () => {
     const [activeTab, setActiveTab] = useState('tasks');
     const [users, setUsers] = useState([]);
     const [tasks, setTasks] = useState([]);
+    const [categories, setCategories] = useState([]);
 
     const [period, setPeriod] = useState('all');
     const [selectedUserIds, setSelectedUserIds] = useState([]);
@@ -307,6 +382,8 @@ const AdminPanel = () => {
     const [editingTask, setEditingTask] = useState(null);
     const [showAddTask, setShowAddTask] = useState(false);
     const [showAddUser, setShowAddUser] = useState(false);
+    const [showAddCategory, setShowAddCategory] = useState(false);
+    const [editingCategory, setEditingCategory] = useState(null);
     const [searchUser, setSearchUser] = useState('');
 
     const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
@@ -314,7 +391,8 @@ const AdminPanel = () => {
     useEffect(() => {
         const unsub1 = subscribeToAllUsers(setUsers);
         const unsub2 = subscribeToAllTasksAdmin(setTasks);
-        return () => { unsub1(); unsub2(); };
+        const unsub3 = subscribeToAllCategories(setCategories);
+        return () => { unsub1(); unsub2(); unsub3(); };
     }, []);
 
     const toggleUser = (uid) => setSelectedUserIds((prev) =>
@@ -387,6 +465,37 @@ const AdminPanel = () => {
         try {
             await deleteTaskAdmin(task.id);
             toast.success('ลบงานสำเร็จ');
+        } catch {
+            toast.error('เกิดข้อผิดพลาด');
+        }
+    };
+
+    // ── Handlers: Categories ───────────────────────────────────────────────────
+    const handleAddCategory = async (data) => {
+        try {
+            await addCategory(data, user);
+            toast.success('เพิ่มหมวดหมู่สำเร็จ');
+            setShowAddCategory(false);
+        } catch {
+            toast.error('เกิดข้อผิดพลาด');
+        }
+    };
+
+    const handleSaveCategory = async (categoryId, data) => {
+        try {
+            await updateCategory(categoryId, data);
+            toast.success('อัปเดตหมวดหมู่สำเร็จ');
+            setEditingCategory(null);
+        } catch {
+            toast.error('เกิดข้อผิดพลาด');
+        }
+    };
+
+    const handleDeleteCategory = async (cat) => {
+        if (!window.confirm(`ลบหมวดหมู่ "${cat.name}" ?`)) return;
+        try {
+            await deleteCategory(cat.id);
+            toast.success('ลบหมวดหมู่สำเร็จ');
         } catch {
             toast.error('เกิดข้อผิดพลาด');
         }
@@ -494,6 +603,9 @@ const AdminPanel = () => {
                     </button>
                     <button className={`admin-tab-btn${activeTab === 'users' ? ' active' : ''}`} onClick={() => setActiveTab('users')}>
                         👥 จัดการผู้ใช้ <span className="admin-tab-count">{users.length}</span>
+                    </button>
+                    <button className={`admin-tab-btn${activeTab === 'categories' ? ' active' : ''}`} onClick={() => setActiveTab('categories')}>
+                        🏷️ หมวดหมู่ <span className="admin-tab-count">{categories.length}</span>
                     </button>
                 </div>
 
@@ -726,13 +838,71 @@ const AdminPanel = () => {
                         </div>
                     </div>
                 )}
+
+                {/* Categories Tab */}
+                {activeTab === 'categories' && (
+                    <div className="admin-panel-body">
+                        <div className="admin-toolbar">
+                            <input
+                                className="input-field"
+                                style={{ flex: 1, minWidth: '150px' }}
+                                placeholder="🔍 ค้นหาหมวดหมู่..."
+                                value={searchUser} // reusing searchUser state for simplicity or could add searchCategory
+                                onChange={(e) => setSearchUser(e.target.value)}
+                            />
+                            <button className="btn" onClick={() => setShowAddCategory(true)}>+ เพิ่มหมวดหมู่</button>
+                        </div>
+
+                        <div className="admin-table-wrap">
+                            <table className="admin-table">
+                                <thead>
+                                    <tr>
+                                        <th>สี</th>
+                                        <th>ชื่อหมวดหมู่</th>
+                                        <th>จำนวนงาน</th>
+                                        <th>จัดการ</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {categories.length === 0 ? (
+                                        <tr>
+                                            <td colSpan={4} style={{ textAlign: 'center', opacity: 0.45, padding: '2.5rem' }}>
+                                                🏷️ ไม่มีหมวดหมู่
+                                            </td>
+                                        </tr>
+                                    ) : categories.map((cat) => (
+                                        <tr key={cat.id}>
+                                            <td>
+                                                <div className="category-dot" style={{ background: cat.color, width: '20px', height: '20px' }} />
+                                            </td>
+                                            <td><strong>{cat.name}</strong></td>
+                                            <td>
+                                                <span className="admin-task-count-pill">
+                                                    {tasks.filter((t) => t.categoryId === cat.id).length} งาน
+                                                </span>
+                                            </td>
+                                            <td>
+                                                <div style={{ display: 'flex', gap: '0.25rem' }}>
+                                                    <button className="btn-icon" title="แก้ไข" onClick={() => setEditingCategory(cat)}>✏️</button>
+                                                    <button className="btn-icon" title="ลบ" style={{ color: 'var(--danger-color)' }} onClick={() => handleDeleteCategory(cat)}>🗑️</button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                )}
             </div>
 
             {/* Modals */}
             {showAddUser && <AddUserModal onClose={() => setShowAddUser(false)} onSave={handleAddUser} />}
             {editingUser && <EditUserModal user={editingUser} onClose={() => setEditingUser(null)} onSave={handleSaveUser} />}
-            {showAddTask && <AddTaskModal users={users} onClose={() => setShowAddTask(false)} onSave={handleAddTask} />}
-            {editingTask && <EditTaskModal task={editingTask} users={users} onClose={() => setEditingTask(null)} onSave={handleSaveTask} />}
+            {showAddTask && <AddTaskModal users={users} categories={categories} onClose={() => setShowAddTask(false)} onSave={handleAddTask} />}
+            {editingTask && <EditTaskModal task={editingTask} users={users} categories={categories} onClose={() => setEditingTask(null)} onSave={handleSaveTask} />}
+            {showAddCategory && <CategoryModal onClose={() => setShowAddCategory(false)} onSave={handleAddCategory} />}
+            {editingCategory && <CategoryModal category={editingCategory} onClose={() => setEditingCategory(null)} onSave={handleSaveCategory} />}
         </div>
     );
 };

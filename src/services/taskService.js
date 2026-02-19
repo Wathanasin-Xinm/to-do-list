@@ -94,6 +94,36 @@ export const updateTask = async (taskId, data) => {
   });
 };
 
+const CATEGORIES_COLLECTION = "categories";
+
+export const subscribeToCategories = (user, callback) => {
+  if (!user) return () => {};
+  const q = query(
+    collection(db, CATEGORIES_COLLECTION),
+    where("ownerId", "==", user.uid),
+    orderBy("createdAt", "asc"),
+  );
+  return onSnapshot(q, (snapshot) => {
+    callback(snapshot.docs.map((d) => ({ id: d.id, ...d.data() })));
+  });
+};
+
+export const addCategory = async (categoryData, user) => {
+  return await addDoc(collection(db, CATEGORIES_COLLECTION), {
+    ...categoryData,
+    ownerId: user.uid,
+    createdAt: serverTimestamp(),
+  });
+};
+
+export const updateCategory = async (categoryId, data) => {
+  await updateDoc(doc(db, CATEGORIES_COLLECTION, categoryId), data);
+};
+
+export const deleteCategory = async (categoryId) => {
+  await deleteDoc(doc(db, CATEGORIES_COLLECTION, categoryId));
+};
+
 /**
  * Persist the new order for a list of tasks.
  * Only updates the `order` field on each affected document.
