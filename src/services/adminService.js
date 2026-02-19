@@ -1,4 +1,4 @@
-import { db } from './firebase';
+import { db } from "./firebase";
 import {
   collection,
   doc,
@@ -10,21 +10,31 @@ import {
   serverTimestamp,
   addDoc,
   setDoc,
-} from 'firebase/firestore';
-import {
-  getAuth,
-  createUserWithEmailAndPassword,
-  updatePassword as firebaseUpdatePassword,
-} from 'firebase/auth';
+  writeBatch,
+} from "firebase/firestore";
+import { getAuth, createUserWithEmailAndPassword } from "firebase/auth";
 
-const USERS_COLLECTION = 'users';
-const TASKS_COLLECTION = 'tasks';
+const USERS_COLLECTION = "users";
+const TASKS_COLLECTION = "tasks";
 
 // ── Users ─────────────────────────────────────────────────────────────────────
+
 export const subscribeToAllUsers = (callback) => {
-  const q = query(collection(db, USERS_COLLECTION), orderBy('createdAt', 'desc'));
+  const q = query(
+    collection(db, USERS_COLLECTION),
+    orderBy("createdAt", "desc"),
+  );
   return onSnapshot(q, (snap) => {
-    callback(snap.docs.map((d) => ({ id: d.id, uid: d.id, ...d.data() })));
+    const users = snap.docs.map((d) => ({ id: d.id, uid: d.id, ...d.data() }));
+    users.sort((a, b) => {
+      const aHasOrder = a.order !== undefined && a.order !== null;
+      const bHasOrder = b.order !== undefined && b.order !== null;
+      if (aHasOrder && bHasOrder) return a.order - b.order;
+      if (aHasOrder) return -1;
+      if (bHasOrder) return 1;
+      return 0;
+    });
+    callback(users);
   });
 };
 
@@ -35,31 +45,58 @@ export const updateUserAdmin = async (uid, data) => {
 
 export const addUserAdmin = async ({ email, password, nickname, role }) => {
   const auth = getAuth();
-  // Create Firebase Auth user
   const userCred = await createUserWithEmailAndPassword(auth, email, password);
   const uid = userCred.user.uid;
-  // Create Firestore doc
   await setDoc(doc(db, USERS_COLLECTION, uid), {
     uid,
     email,
-    nickname: nickname || email.split('@')[0],
-    role: role || 'user',
-    color: '#' + Math.floor(Math.random() * 16777215).toString(16).padStart(6, '0'),
+    nickname: nickname || email.split("@")[0],
+    role: role || "user",
+    color:
+      "#" +
+      Math.floor(Math.random() * 16777215)
+        .toString(16)
+        .padStart(6, "0"),
     createdAt: new Date().toISOString(),
+    order: Date.now(),
   });
   return uid;
 };
 
 export const deleteUserAdmin = async (uid) => {
-  // Deletes Firestore user document only (Firebase Auth deletion requires Admin SDK)
   await deleteDoc(doc(db, USERS_COLLECTION, uid));
 };
 
+/**
+ * Persist new user order (admin user reordering).
+ */
+export const updateUserOrder = async (orderedUsers) => {
+  const batch = writeBatch(db);
+  orderedUsers.forEach((u, index) => {
+    const ref = doc(db, USERS_COLLECTION, u.uid);
+    batch.update(ref, { order: index });
+  });
+  await batch.commit();
+};
+
 // ── Tasks ─────────────────────────────────────────────────────────────────────
+
 export const subscribeToAllTasksAdmin = (callback) => {
-  const q = query(collection(db, TASKS_COLLECTION), orderBy('createdAt', 'desc'));
+  const q = query(
+    collection(db, TASKS_COLLECTION),
+    orderBy("createdAt", "desc"),
+  );
   return onSnapshot(q, (snap) => {
-    callback(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+    const tasks = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    tasks.sort((a, b) => {
+      const aHasOrder = a.order !== undefined && a.order !== null;
+      const bHasOrder = b.order !== undefined && b.order !== null;
+      if (aHasOrder && bHasOrder) return a.order - b.order;
+      if (aHasOrder) return -1;
+      if (bHasOrder) return 1;
+      return 0;
+    });
+    callback(tasks);
   });
 };
 
@@ -67,6 +104,7 @@ export const addTaskAdmin = async (taskData) => {
   return await addDoc(collection(db, TASKS_COLLECTION), {
     ...taskData,
     completed: false,
+    order: Date.now(),
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   });
@@ -81,4 +119,16 @@ export const updateTaskAdmin = async (taskId, data) => {
 
 export const deleteTaskAdmin = async (taskId) => {
   await deleteDoc(doc(db, TASKS_COLLECTION, taskId));
+};
+
+/**
+ * Persist new task order for admin reordering.
+ */
+export const updateTaskOrderAdmin = async (orderedTasks) => {
+  const batch = writeBatch(db);
+  orderedTasks.forEach((task, index) => {
+    const ref = doc(db, TASKS_COLLECTION, task.id);
+    batch.update(ref, { order: index });
+  });
+  await batch.commit();
 };

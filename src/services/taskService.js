@@ -1,71 +1,76 @@
-import { db } from './firebase';
-import { 
-  collection, 
-  addDoc, 
-  deleteDoc, 
-  updateDoc, 
-  doc, 
-  query, 
-  where, 
-  onSnapshot, 
+import { db } from "./firebase";
+import {
+  collection,
+  addDoc,
+  deleteDoc,
+  updateDoc,
+  doc,
+  query,
+  where,
+  onSnapshot,
   orderBy,
-  serverTimestamp
-} from 'firebase/firestore';
+  serverTimestamp,
+  writeBatch,
+} from "firebase/firestore";
 
-const TASKS_COLLECTION = 'tasks';
+const TASKS_COLLECTION = "tasks";
 
 export const subscribeToTasks = (user, callback) => {
-  let q;
   if (!user) return () => {};
 
-  // Admin sees all, User sees own
-  // Note: We need to fetch the user role first, but for simplicity in real-time listener
-  // we might need to handle this at the UI/Context level or use two different queries.
-  // For this implementation, we will trust the Security Rules to enforce, but the query 
-  // needs to match the rules or it will fail.
-  
-  // A safer approach for the client is to always query by ownerId unless we KNOW they are admin.
-  // We'll let the Component pass the correct constraints.
-  
-  q = query(
+  const q = query(
     collection(db, TASKS_COLLECTION),
-    where('ownerId', '==', user.uid),
-    orderBy('createdAt', 'desc')
+    where("ownerId", "==", user.uid),
+    orderBy("createdAt", "desc"),
   );
 
   return onSnapshot(q, (snapshot) => {
-    const tasks = snapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    }));
+    const tasks = snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
+    // Sort client-side: tasks with an order field first (asc), then by createdAt
+    tasks.sort((a, b) => {
+      const aHasOrder = a.order !== undefined && a.order !== null;
+      const bHasOrder = b.order !== undefined && b.order !== null;
+      if (aHasOrder && bHasOrder) return a.order - b.order;
+      if (aHasOrder) return -1;
+      if (bHasOrder) return 1;
+      return 0; // both without order: keep createdAt desc from Firestore
+    });
     callback(tasks);
   });
 };
 
 export const subscribeToAllTasks = (callback) => {
-    const q = query(
-        collection(db, TASKS_COLLECTION),
-        orderBy('createdAt', 'desc')
-    );
-    return onSnapshot(q, (snapshot) => {
-        const tasks = snapshot.docs.map(doc => ({
-            id: doc.id,
-            ...doc.data()
-        }));
-        callback(tasks);
+  const q = query(
+    collection(db, TASKS_COLLECTION),
+    orderBy("createdAt", "desc"),
+  );
+  return onSnapshot(q, (snapshot) => {
+    const tasks = snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
+    tasks.sort((a, b) => {
+      const aHasOrder = a.order !== undefined && a.order !== null;
+      const bHasOrder = b.order !== undefined && b.order !== null;
+      if (aHasOrder && bHasOrder) return a.order - b.order;
+      if (aHasOrder) return -1;
+      if (bHasOrder) return 1;
+      return 0;
     });
-}
+    callback(tasks);
+  });
+};
 
 export const addTask = async (taskData, user) => {
+  // Assign a high order value so new tasks go last
+  const order = Date.now();
   return await addDoc(collection(db, TASKS_COLLECTION), {
     ...taskData,
     ownerId: user.uid,
     ownerEmail: user.email,
-    ownerNickname: taskData.ownerNickname || '',
-    ownerColor: user.color || '#000000',
+    ownerNickname: taskData.ownerNickname || "",
+    ownerColor: user.color || "#000000",
     completed: false,
+    order,
     createdAt: serverTimestamp(),
-    updatedAt: serverTimestamp()
+    updatedAt: serverTimestamp(),
   });
 };
 
@@ -73,7 +78,7 @@ export const toggleTaskCompletion = async (taskId, currentStatus) => {
   const taskRef = doc(db, TASKS_COLLECTION, taskId);
   await updateDoc(taskRef, {
     completed: !currentStatus,
-    updatedAt: serverTimestamp()
+    updatedAt: serverTimestamp(),
   });
 };
 
@@ -82,9 +87,22 @@ export const deleteTask = async (taskId) => {
 };
 
 export const updateTask = async (taskId, data) => {
-    const taskRef = doc(db, TASKS_COLLECTION, taskId);
-    await updateDoc(taskRef, {
-        ...data,
-        updatedAt: serverTimestamp()
-    });
-}
+  const taskRef = doc(db, TASKS_COLLECTION, taskId);
+  await updateDoc(taskRef, {
+    ...data,
+    updatedAt: serverTimestamp(),
+  });
+};
+
+/**
+ * Persist the new order for a list of tasks.
+ * Only updates the `order` field on each affected document.
+ */
+export const updateTaskOrder = async (orderedTasks) => {
+  const batch = writeBatch(db);
+  orderedTasks.forEach((task, index) => {
+    const ref = doc(db, TASKS_COLLECTION, task.id);
+    batch.update(ref, { order: index });
+  });
+  await batch.commit();
+};

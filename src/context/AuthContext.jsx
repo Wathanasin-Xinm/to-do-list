@@ -8,7 +8,7 @@ const AuthContext = createContext();
 export const AuthProvider = ({ children }) => {
     const [user, setUser] = useState(null);
     const [loading, setLoading] = useState(true);
-    const [userData, setUserData] = useState(null); // Extended data like role, color
+    const [userData, setUserData] = useState(null);
 
     useEffect(() => {
         const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
@@ -28,8 +28,15 @@ export const AuthProvider = ({ children }) => {
         return unsubscribe;
     }, []);
 
+    const refreshUser = async () => {
+        if (auth.currentUser) {
+            await auth.currentUser.reload();
+            setUser({ ...auth.currentUser });
+        }
+    };
+
     return (
-        <AuthContext.Provider value={{ user, userData, loading }}>
+        <AuthContext.Provider value={{ user, userData, loading, refreshUser, setUserData }}>
             {!loading && children}
         </AuthContext.Provider>
     );

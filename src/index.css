@@ -556,18 +556,18 @@ body.dark-mode .modal-box {
 }
 
 .btn-ghost {
-  background: rgba(0,0,0,0.08);
+  background: rgba(0, 0, 0, 0.08);
   color: inherit;
 }
 
 body.dark-mode .btn-ghost {
-  background: rgba(255,255,255,0.1);
+  background: rgba(255, 255, 255, 0.1);
 }
 
 .btn-outline-white {
-  background: rgba(255,255,255,0.15);
+  background: rgba(255, 255, 255, 0.15);
   color: white;
-  border: 1.5px solid rgba(255,255,255,0.35);
+  border: 1.5px solid rgba(255, 255, 255, 0.35);
   padding: 0.6rem 1.1rem;
   border-radius: 8px;
   font-weight: 600;
@@ -579,7 +579,7 @@ body.dark-mode .btn-ghost {
 }
 
 .btn-outline-white:hover {
-  background: rgba(255,255,255,0.25);
+  background: rgba(255, 255, 255, 0.25);
 }
 
 /* ===== ADMIN LAYOUT ===== */
@@ -609,7 +609,7 @@ body.dark-mode .btn-ghost {
 
 .admin-header-icon {
   font-size: 2rem;
-  filter: drop-shadow(0 2px 4px rgba(0,0,0,0.2));
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.2));
 }
 
 .admin-header-title {
@@ -623,7 +623,7 @@ body.dark-mode .btn-ghost {
 .admin-header-sub {
   margin: 0;
   font-size: 0.82rem;
-  color: rgba(255,255,255,0.72);
+  color: rgba(255, 255, 255, 0.72);
 }
 
 /* ===== ADMIN CONTENT ===== */
@@ -649,7 +649,7 @@ body.dark-mode .btn-ghost {
   -webkit-backdrop-filter: blur(16px);
   border: 1px solid var(--glass-border-light);
   border-radius: 16px;
-  box-shadow: 0 4px 20px rgba(0,0,0,0.07);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.07);
   padding: 1.1rem 1rem;
   text-align: center;
   transition: transform 0.2s, box-shadow 0.2s;
@@ -657,7 +657,7 @@ body.dark-mode .btn-ghost {
 
 .admin-stat-card:hover {
   transform: translateY(-3px);
-  box-shadow: 0 8px 24px rgba(108,92,231,0.15);
+  box-shadow: 0 8px 24px rgba(108, 92, 231, 0.15);
 }
 
 body.dark-mode .admin-stat-card {
@@ -715,7 +715,7 @@ body.dark-mode .admin-stat-card {
   background: var(--primary-color);
   color: white;
   border-color: var(--primary-color);
-  box-shadow: 0 4px 14px rgba(108,92,231,0.3);
+  box-shadow: 0 4px 14px rgba(108, 92, 231, 0.3);
 }
 
 .admin-tab-btn:hover:not(.active) {
@@ -723,7 +723,7 @@ body.dark-mode .admin-stat-card {
 }
 
 .admin-tab-count {
-  background: rgba(255,255,255,0.25);
+  background: rgba(255, 255, 255, 0.25);
   border-radius: 20px;
   padding: 0.1rem 0.5rem;
   font-size: 0.75rem;
@@ -731,7 +731,7 @@ body.dark-mode .admin-stat-card {
 }
 
 .admin-tab-btn:not(.active) .admin-tab-count {
-  background: rgba(108,92,231,0.12);
+  background: rgba(108, 92, 231, 0.12);
   color: var(--primary-color);
 }
 
@@ -742,7 +742,7 @@ body.dark-mode .admin-stat-card {
   -webkit-backdrop-filter: blur(16px);
   border: 1px solid var(--glass-border-light);
   border-radius: 18px;
-  box-shadow: 0 4px 30px rgba(0,0,0,0.08);
+  box-shadow: 0 4px 30px rgba(0, 0, 0, 0.08);
   overflow: hidden;
 }
 
@@ -757,13 +757,13 @@ body.dark-mode .admin-panel-body {
   flex-wrap: wrap;
   gap: 1rem;
   padding: 1.25rem 1.5rem;
-  border-bottom: 1px solid rgba(0,0,0,0.06);
-  background: rgba(108,92,231,0.03);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+  background: rgba(108, 92, 231, 0.03);
 }
 
 body.dark-mode .admin-filters-row {
-  border-bottom-color: rgba(255,255,255,0.06);
-  background: rgba(108,92,231,0.05);
+  border-bottom-color: rgba(255, 255, 255, 0.06);
+  background: rgba(108, 92, 231, 0.05);
 }
 
 .admin-filter-group {
@@ -788,7 +788,7 @@ body.dark-mode .admin-filters-row {
 
 .admin-period-tab {
   padding: 0.35rem 0.75rem;
-  border: 1.5px solid rgba(108,92,231,0.25);
+  border: 1.5px solid rgba(108, 92, 231, 0.25);
   border-radius: 20px;
   background: transparent;
   color: var(--primary-color);
@@ -805,7 +805,7 @@ body.dark-mode .admin-filters-row {
 }
 
 .admin-period-tab:hover:not(.active) {
-  background: rgba(108,92,231,0.1);
+  background: rgba(108, 92, 231, 0.1);
 }
 
 /* ===== TASK BODY (checklist + table) ===== */
@@ -821,13 +821,13 @@ body.dark-mode .admin-filters-row {
   min-width: 160px;
   max-width: 220px;
   flex-shrink: 0;
-  border-right: 1px solid rgba(0,0,0,0.06);
+  border-right: 1px solid rgba(0, 0, 0, 0.06);
   display: flex;
   flex-direction: column;
 }
 
 body.dark-mode .admin-user-checklist {
-  border-right-color: rgba(255,255,255,0.06);
+  border-right-color: rgba(255, 255, 255, 0.06);
 }
 
 .admin-checklist-header {
@@ -868,11 +868,11 @@ body.dark-mode .admin-user-checklist {
 }
 
 .admin-checklist-item:hover {
-  background: rgba(108,92,231,0.07);
+  background: rgba(108, 92, 231, 0.07);
 }
 
 .admin-checklist-item.checked {
-  background: rgba(108,92,231,0.1);
+  background: rgba(108, 92, 231, 0.1);
 }
 
 .admin-checklist-dot {
@@ -921,7 +921,7 @@ body.dark-mode .admin-user-checklist {
 }
 
 .admin-selection-badge {
-  background: rgba(108,92,231,0.1);
+  background: rgba(108, 92, 231, 0.1);
   color: var(--primary-color);
   border-radius: 20px;
   padding: 0.2rem 0.65rem;
@@ -962,33 +962,35 @@ body.dark-mode .admin-user-checklist {
 .admin-table th {
   text-align: left;
   padding: 0.75rem 1rem;
-  background: rgba(108,92,231,0.06);
+  background: rgba(108, 92, 231, 0.06);
   font-weight: 600;
   font-size: 0.8rem;
-  border-bottom: 2px solid rgba(108,92,231,0.12);
+  border-bottom: 2px solid rgba(108, 92, 231, 0.12);
   white-space: nowrap;
 }
 
 .admin-table td {
   padding: 0.7rem 1rem;
-  border-bottom: 1px solid rgba(0,0,0,0.045);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.045);
   vertical-align: middle;
   word-break: break-word;
 }
 
 body.dark-mode .admin-table th {
-  background: rgba(108,92,231,0.12);
-  border-bottom-color: rgba(108,92,231,0.18);
+  background: rgba(108, 92, 231, 0.12);
+  border-bottom-color: rgba(108, 92, 231, 0.18);
 }
 
 body.dark-mode .admin-table td {
-  border-bottom-color: rgba(255,255,255,0.05);
+  border-bottom-color: rgba(255, 255, 255, 0.05);
 }
 
-.admin-table tr:last-child td { border-bottom: none; }
+.admin-table tr:last-child td {
+  border-bottom: none;
+}
 
 .admin-table tbody tr:hover td {
-  background: rgba(108,92,231,0.04);
+  background: rgba(108, 92, 231, 0.04);
 }
 
 /* ===== OWNER CELL ===== */
@@ -1015,12 +1017,12 @@ body.dark-mode .admin-table td {
 }
 
 .admin-status-badge.done {
-  background: rgba(0,184,148,0.15);
+  background: rgba(0, 184, 148, 0.15);
   color: var(--success-color);
 }
 
 .admin-status-badge.pending {
-  background: rgba(225,112,85,0.12);
+  background: rgba(225, 112, 85, 0.12);
   color: #e17055;
 }
 
@@ -1034,12 +1036,12 @@ body.dark-mode .admin-table td {
 }
 
 .admin-role-badge.admin {
-  background: rgba(108,92,231,0.15);
+  background: rgba(108, 92, 231, 0.15);
   color: var(--primary-color);
 }
 
 .admin-role-badge.user {
-  background: rgba(0,184,148,0.12);
+  background: rgba(0, 184, 148, 0.12);
   color: var(--success-color);
 }
 
@@ -1065,7 +1067,7 @@ body.dark-mode .admin-table td {
 
 /* ===== TASK COUNT PILL ===== */
 .admin-task-count-pill {
-  background: rgba(108,92,231,0.1);
+  background: rgba(108, 92, 231, 0.1);
   color: var(--primary-color);
   border-radius: 20px;
   padding: 0.18rem 0.6rem;
@@ -1096,6 +1098,289 @@ body.dark-mode .admin-table td {
     width: 160px;
     min-width: 140px;
   }
+}
+
+/* ===== DRAG HANDLE ===== */
+.drag-handle {
+  cursor: grab;
+  font-size: 1.1rem;
+  opacity: 0.35;
+  padding: 0 0.2rem;
+  user-select: none;
+  flex-shrink: 0;
+  align-self: center;
+  transition: opacity 0.2s;
+  font-family: monospace;
+}
+
+.drag-handle:hover {
+  opacity: 0.75;
+}
+
+.drag-overlay {
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.2);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.92);
+  list-style: none;
+  padding: 0.7rem 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  cursor: grabbing;
+}
+
+body.dark-mode .drag-overlay {
+  background: rgba(40, 40, 40, 0.95);
+  color: #eee;
+}
+
+/* ===== EXPIRATION BADGES ===== */
+.expire-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  border-radius: 20px;
+  padding: 0.15rem 0.55rem;
+  margin-left: 0.5rem;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+.expire-badge--expired {
+  background: rgba(214, 48, 49, 0.15);
+  color: #d63031;
+  border: 1.5px solid rgba(214, 48, 49, 0.3);
+}
+
+.expire-badge--countdown {
+  background: rgba(253, 203, 110, 0.2);
+  color: #b8860b;
+  border: 1.5px solid rgba(253, 203, 110, 0.5);
+  animation: pulse-badge 1.5s ease-in-out infinite;
+}
+
+body.dark-mode .expire-badge--countdown {
+  color: #fdcb6e;
+  background: rgba(253, 203, 110, 0.12);
+}
+
+@keyframes pulse-badge {
+
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.65;
+  }
+}
+
+/* ===== ADD TASK FORM WRAP ===== */
+.add-task-form-wrap {
+  margin-bottom: 1.25rem;
+}
+
+.add-task-row {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.6rem;
+}
+
+.add-task-row .input-field {
+  flex: 1;
+  min-width: 120px;
+}
+
+/* ===== EXPIRATION UI ===== */
+.expire-toggle-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--primary-color);
+  user-select: none;
+  margin-bottom: 0.5rem;
+}
+
+.expire-fields {
+  background: rgba(108, 92, 231, 0.06);
+  border: 1.5px solid rgba(108, 92, 231, 0.2);
+  border-radius: 10px;
+  padding: 0.85rem 1rem;
+  animation: fadeIn 0.2s ease;
+}
+
+body.dark-mode .expire-fields {
+  background: rgba(108, 92, 231, 0.1);
+  border-color: rgba(108, 92, 231, 0.3);
+}
+
+.expire-mode-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: center;
+  font-size: 0.82rem;
+}
+
+.expire-mode-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  cursor: pointer;
+  font-size: 0.82rem;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ===== PROFILE PAGE ===== */
+.profile-wrapper {
+  min-height: 100vh;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 2rem 1rem;
+}
+
+.profile-card {
+  width: 100%;
+  max-width: 520px;
+  padding: 2rem;
+  margin-top: 2em;
+}
+
+.profile-card h2 {
+  margin: 0 0 1.5rem;
+  font-size: 1.35rem;
+}
+
+.profile-section {
+  border-top: 1px solid rgba(0, 0, 0, 0.06);
+  padding-top: 1.25rem;
+  margin-top: 1.25rem;
+}
+
+body.dark-mode .profile-section {
+  border-top-color: rgba(255, 255, 255, 0.07);
+}
+
+.profile-section h3 {
+  font-size: 1rem;
+  margin: 0 0 0.9rem;
+  opacity: 0.8;
+}
+
+.profile-back-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  color: var(--primary-color);
+  font-size: 0.85rem;
+  text-decoration: none;
+  margin-bottom: 1rem;
+  opacity: 0.85;
+  transition: opacity 0.2s;
+}
+
+.profile-back-link:hover {
+  opacity: 1;
+}
+
+/* Fixed top-left on desktop */
+.profile-back-link--fixed {
+  position: fixed;
+  top: 1.5rem;
+  left: 1.5rem;
+  z-index: 10;
+  margin-bottom: 0;
+}
+
+/* ===== VERIFY EMAIL PAGE ===== */
+.verify-wrapper {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+}
+
+.verify-card {
+  width: 100%;
+  max-width: 440px;
+  padding: 2.5rem 2rem;
+  text-align: center;
+}
+
+.verify-card .verify-icon {
+  font-size: 3.5rem;
+  margin-bottom: 1rem;
+  display: block;
+}
+
+.verify-card h2 {
+  margin: 0 0 0.75rem;
+}
+
+.verify-card p {
+  font-size: 0.9rem;
+  opacity: 0.7;
+  margin-bottom: 1.5rem;
+  line-height: 1.6;
+}
+
+.verify-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+/* ===== FORGOT PASSWORD PAGE ===== */
+.forgot-wrapper {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+}
+
+.forgot-card {
+  width: 100%;
+  max-width: 420px;
+  padding: 2.5rem 2rem;
+  text-align: center;
+}
+
+.forgot-card h2 {
+  margin: 0 0 0.75rem;
+}
+
+.forgot-card p {
+  font-size: 0.88rem;
+  opacity: 0.65;
+  margin-bottom: 1.5rem;
+  line-height: 1.6;
+}
+
+.forgot-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
 }
 
 /* ===== RESPONSIVE: MOBILE (max 600px) ===== */
@@ -1169,11 +1454,11 @@ body.dark-mode .admin-table td {
     width: 100%;
     max-width: 100%;
     border-right: none;
-    border-bottom: 1px solid rgba(0,0,0,0.06);
+    border-bottom: 1px solid rgba(0, 0, 0, 0.06);
   }
 
   body.dark-mode .admin-user-checklist {
-    border-bottom-color: rgba(255,255,255,0.06);
+    border-bottom-color: rgba(255, 255, 255, 0.06);
   }
 
   .admin-checklist-items {

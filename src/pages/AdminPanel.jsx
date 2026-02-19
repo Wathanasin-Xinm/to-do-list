@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { toast } from 'react-toastify';
@@ -11,7 +11,24 @@ import {
     addTaskAdmin,
     updateTaskAdmin,
     deleteTaskAdmin,
+    updateUserOrder,
+    updateTaskOrderAdmin,
 } from '../services/adminService';
+import {
+    DndContext,
+    closestCenter,
+    PointerSensor,
+    useSensor,
+    useSensors,
+    DragOverlay,
+} from '@dnd-kit/core';
+import {
+    SortableContext,
+    verticalListSortingStrategy,
+    useSortable,
+    arrayMove,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 
 // ─── Date Helpers ─────────────────────────────────────────────────────────────
 const formatDate = (val) => {
@@ -33,8 +50,7 @@ const isSameDay = (d1, d2) =>
 const isSameWeek = (d1, d2) => {
     const startOfWeek = (d) => {
         const dt = new Date(d);
-        const day = dt.getDay();
-        dt.setDate(dt.getDate() - day);
+        dt.setDate(dt.getDate() - dt.getDay());
         dt.setHours(0, 0, 0, 0);
         return dt;
     };
@@ -46,8 +62,28 @@ const isSameMonth = (d1, d2) =>
 
 const isSameYear = (d1, d2) => d1.getFullYear() === d2.getFullYear();
 
-// ─── Modals ───────────────────────────────────────────────────────────────────
+// ─── Sortable Row Wrapper ─────────────────────────────────────────────────────
+const SortableRow = ({ id, children }) => {
+    const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
+    return (
+        <tr
+            ref={setNodeRef}
+            style={{
+                transform: CSS.Transform.toString(transform),
+                transition,
+                opacity: isDragging ? 0.4 : 1,
+            }}
+        >
+            <td style={{ width: '28px', cursor: 'grab', fontSize: '1.1rem', opacity: 0.4, userSelect: 'none' }}
+                {...attributes} {...listeners} title="ลากเพื่อเรียงลำดับ">
+                ⠿
+            </td>
+            {children}
+        </tr>
+    );
+};
 
+// ─── Modals ───────────────────────────────────────────────────────────────────
 const AddUserModal = ({ onClose, onSave }) => {
     const [nickname, setNickname] = useState('');
     const [email, setEmail] = useState('');
@@ -262,20 +298,18 @@ const AdminPanel = () => {
     const [users, setUsers] = useState([]);
     const [tasks, setTasks] = useState([]);
 
-    // Task filters
     const [period, setPeriod] = useState('all');
-    const [selectedUserIds, setSelectedUserIds] = useState([]); // empty = all
+    const [selectedUserIds, setSelectedUserIds] = useState([]);
     const [searchTask, setSearchTask] = useState('');
-    const [filterStatus, setFilterStatus] = useState('all'); // 'all' | 'done' | 'pending'
+    const [filterStatus, setFilterStatus] = useState('all');
 
-    // Modals
     const [editingUser, setEditingUser] = useState(null);
     const [editingTask, setEditingTask] = useState(null);
     const [showAddTask, setShowAddTask] = useState(false);
     const [showAddUser, setShowAddUser] = useState(false);
-
-    // User search
     const [searchUser, setSearchUser] = useState('');
+
+    const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
 
     useEffect(() => {
         const unsub1 = subscribeToAllUsers(setUsers);
@@ -283,17 +317,13 @@ const AdminPanel = () => {
         return () => { unsub1(); unsub2(); };
     }, []);
 
-    // ── Toggle user selection ────────────────────────────────────────────────
-    const toggleUser = (uid) => {
-        setSelectedUserIds((prev) =>
-            prev.includes(uid) ? prev.filter((id) => id !== uid) : [...prev, uid]
-        );
-    };
-
+    const toggleUser = (uid) => setSelectedUserIds((prev) =>
+        prev.includes(uid) ? prev.filter((id) => id !== uid) : [...prev, uid]
+    );
     const selectAllUsers = () => setSelectedUserIds([]);
     const isAllSelected = selectedUserIds.length === 0;
 
-    // ── Handlers: Users ──────────────────────────────────────────────────────
+    // ── Handlers: Users ────────────────────────────────────────────────────────
     const handleAddUser = async (data) => {
         try {
             await addUserAdmin(data);
@@ -321,17 +351,17 @@ const AdminPanel = () => {
         }
     };
 
-    const handleDeleteUser = async (user) => {
-        if (!window.confirm(`ลบผู้ใช้ "${user.nickname || user.email}" ?\n(ลบเฉพาะข้อมูลใน Firestore)`)) return;
+    const handleDeleteUser = async (u) => {
+        if (!window.confirm(`ลบผู้ใช้ "${u.nickname || u.email}" ?\n(ลบเฉพาะข้อมูลใน Firestore)`)) return;
         try {
-            await deleteUserAdmin(user.uid);
+            await deleteUserAdmin(u.uid);
             toast.success('ลบผู้ใช้สำเร็จ');
         } catch {
             toast.error('เกิดข้อผิดพลาด');
         }
     };
 
-    // ── Handlers: Tasks ──────────────────────────────────────────────────────
+    // ── Handlers: Tasks ────────────────────────────────────────────────────────
     const handleAddTask = async (data) => {
         try {
             await addTaskAdmin(data);
@@ -362,14 +392,34 @@ const AdminPanel = () => {
         }
     };
 
-    // ── Filtered Tasks ───────────────────────────────────────────────────────
+    // ── Drag & Drop ────────────────────────────────────────────────────────────
+    const handleTaskDragEnd = useCallback(async ({ active, over }) => {
+        if (!over || active.id === over.id) return;
+        setTasks((prev) => {
+            const oldIndex = prev.findIndex((t) => t.id === active.id);
+            const newIndex = prev.findIndex((t) => t.id === over.id);
+            const reordered = arrayMove(prev, oldIndex, newIndex);
+            updateTaskOrderAdmin(reordered).catch(() => toast.error('ไม่สามารถบันทึกการเรียงลำดับได้'));
+            return reordered;
+        });
+    }, []);
+
+    const handleUserDragEnd = useCallback(async ({ active, over }) => {
+        if (!over || active.id === over.id) return;
+        setUsers((prev) => {
+            const oldIndex = prev.findIndex((u) => u.uid === active.id);
+            const newIndex = prev.findIndex((u) => u.uid === over.id);
+            const reordered = arrayMove(prev, oldIndex, newIndex);
+            updateUserOrder(reordered).catch(() => toast.error('ไม่สามารถบันทึกการเรียงลำดับได้'));
+            return reordered;
+        });
+    }, []);
+
+    // ── Filtered Tasks ─────────────────────────────────────────────────────────
     const now = new Date();
     const filteredTasks = useMemo(() => {
         return tasks.filter((t) => {
-            // User filter (multi-select, empty = all)
             const matchUser = selectedUserIds.length === 0 || selectedUserIds.includes(t.ownerId);
-
-            // Period filter
             let matchPeriod = true;
             if (period !== 'all') {
                 const taskDate = getTaskDate(t);
@@ -385,22 +435,16 @@ const AdminPanel = () => {
                     matchPeriod = isSameYear(taskDate, now);
                 }
             }
-
-            // Search
             const matchSearch = !searchTask || t.title.toLowerCase().includes(searchTask.toLowerCase());
-
-            // Status
             const matchStatus =
                 filterStatus === 'all' ||
                 (filterStatus === 'done' && t.completed) ||
                 (filterStatus === 'pending' && !t.completed);
-
             return matchUser && matchPeriod && matchSearch && matchStatus;
         });
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [tasks, selectedUserIds, period, searchTask, filterStatus]);
 
-    // ── Filtered Users (search) ───────────────────────────────────────────────
     const filteredUsers = useMemo(() => {
         if (!searchUser) return users;
         return users.filter(
@@ -410,7 +454,6 @@ const AdminPanel = () => {
         );
     }, [users, searchUser]);
 
-    // ── Stats ─────────────────────────────────────────────────────────────────
     const stats = [
         { label: 'ผู้ใช้ทั้งหมด', value: users.length, icon: '👥', color: '#6c5ce7' },
         { label: 'งานทั้งหมด', value: tasks.length, icon: '📋', color: '#0984e3' },
@@ -420,7 +463,7 @@ const AdminPanel = () => {
 
     return (
         <div className="admin-layout">
-            {/* ── Header ── */}
+            {/* Header */}
             <header className="admin-header-bar">
                 <div className="admin-header-left">
                     <div className="admin-header-icon">🛡️</div>
@@ -429,13 +472,11 @@ const AdminPanel = () => {
                         <p className="admin-header-sub">จัดการระบบ To-Do List</p>
                     </div>
                 </div>
-                <Link to="/" className="btn btn-outline-white">
-                    ← กลับ Dashboard
-                </Link>
+                <Link to="/" className="btn btn-outline-white">← กลับ Dashboard</Link>
             </header>
 
             <div className="admin-content">
-                {/* ── Stat Cards ── */}
+                {/* Stat Cards */}
                 <div className="admin-stats-grid">
                     {stats.map((s) => (
                         <div key={s.label} className="admin-stat-card">
@@ -446,24 +487,20 @@ const AdminPanel = () => {
                     ))}
                 </div>
 
-                {/* ── Tabs ── */}
+                {/* Tabs */}
                 <div className="admin-tab-bar">
                     <button className={`admin-tab-btn${activeTab === 'tasks' ? ' active' : ''}`} onClick={() => setActiveTab('tasks')}>
-                        📋 จัดการงาน
-                        <span className="admin-tab-count">{tasks.length}</span>
+                        📋 จัดการงาน <span className="admin-tab-count">{tasks.length}</span>
                     </button>
                     <button className={`admin-tab-btn${activeTab === 'users' ? ' active' : ''}`} onClick={() => setActiveTab('users')}>
-                        👥 จัดการผู้ใช้
-                        <span className="admin-tab-count">{users.length}</span>
+                        👥 จัดการผู้ใช้ <span className="admin-tab-count">{users.length}</span>
                     </button>
                 </div>
 
-                {/* ── Tasks Tab ── */}
+                {/* Tasks Tab */}
                 {activeTab === 'tasks' && (
                     <div className="admin-panel-body">
-                        {/* Filters row */}
                         <div className="admin-filters-row">
-                            {/* Period tabs */}
                             <div className="admin-filter-group">
                                 <span className="admin-filter-label">📅 ช่วงเวลา</span>
                                 <div className="admin-period-tabs">
@@ -478,8 +515,6 @@ const AdminPanel = () => {
                                     ))}
                                 </div>
                             </div>
-
-                            {/* Status filter */}
                             <div className="admin-filter-group">
                                 <span className="admin-filter-label">🔖 สถานะ</span>
                                 <div className="admin-period-tabs">
@@ -516,10 +551,7 @@ const AdminPanel = () => {
                                                     onChange={() => toggleUser(u.uid)}
                                                     style={{ accentColor: 'var(--primary-color)' }}
                                                 />
-                                                <span
-                                                    className="admin-checklist-dot"
-                                                    style={{ background: u.color || '#6c5ce7' }}
-                                                />
+                                                <span className="admin-checklist-dot" style={{ background: u.color || '#6c5ce7' }} />
                                                 <span className="admin-checklist-name">{u.nickname || u.email}</span>
                                                 <span className="admin-checklist-count">
                                                     {tasks.filter((t) => t.ownerId === u.uid).length}
@@ -551,65 +583,75 @@ const AdminPanel = () => {
                                         </span>
                                     )}
                                     <span className="admin-count-text">แสดง {filteredTasks.length} รายการ</span>
+                                    <span style={{ fontSize: '0.75rem', opacity: 0.5, marginLeft: '0.5rem' }}>⠿ ลากเพื่อเรียง</span>
                                 </div>
 
                                 <div className="admin-table-wrap">
-                                    <table className="admin-table">
-                                        <thead>
-                                            <tr>
-                                                <th>ชื่องาน</th>
-                                                <th>เจ้าของ</th>
-                                                <th>ครบกำหนด</th>
-                                                <th>สถานะ</th>
-                                                <th>จัดการ</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {filteredTasks.length === 0 ? (
-                                                <tr>
-                                                    <td colSpan={5} style={{ textAlign: 'center', opacity: 0.45, padding: '2.5rem' }}>
-                                                        📭 ไม่มีงานในช่วงนี้
-                                                    </td>
-                                                </tr>
-                                            ) : filteredTasks.map((task) => (
-                                                <tr key={task.id}>
-                                                    <td style={{ maxWidth: '220px' }}>
-                                                        <span style={{ textDecoration: task.completed ? 'line-through' : 'none', opacity: task.completed ? 0.55 : 1 }}>
-                                                            {task.title}
-                                                        </span>
-                                                    </td>
-                                                    <td>
-                                                        <div className="admin-owner-cell">
-                                                            <span
-                                                                className="admin-owner-dot"
-                                                                style={{ background: users.find((u) => u.uid === task.ownerId)?.color || '#6c5ce7' }}
-                                                            />
-                                                            {task.ownerNickname || task.ownerEmail || '—'}
-                                                        </div>
-                                                    </td>
-                                                    <td>{task.dueDate ? new Date(task.dueDate).toLocaleDateString('th-TH') : '—'}</td>
-                                                    <td>
-                                                        <span className={`admin-status-badge ${task.completed ? 'done' : 'pending'}`}>
-                                                            {task.completed ? '✅ เสร็จ' : '⏳ ค้าง'}
-                                                        </span>
-                                                    </td>
-                                                    <td>
-                                                        <div style={{ display: 'flex', gap: '0.25rem' }}>
-                                                            <button className="btn-icon" title="แก้ไข" onClick={() => setEditingTask(task)}>✏️</button>
-                                                            <button className="btn-icon" title="ลบ" style={{ color: 'var(--danger-color)' }} onClick={() => handleDeleteTask(task)}>🗑️</button>
-                                                        </div>
-                                                    </td>
-                                                </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
+                                    <DndContext
+                                        sensors={sensors}
+                                        collisionDetection={closestCenter}
+                                        onDragEnd={handleTaskDragEnd}
+                                    >
+                                        <SortableContext items={filteredTasks.map((t) => t.id)} strategy={verticalListSortingStrategy}>
+                                            <table className="admin-table">
+                                                <thead>
+                                                    <tr>
+                                                        <th style={{ width: '28px' }}></th>
+                                                        <th>ชื่องาน</th>
+                                                        <th>เจ้าของ</th>
+                                                        <th>ครบกำหนด</th>
+                                                        <th>สถานะ</th>
+                                                        <th>จัดการ</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    {filteredTasks.length === 0 ? (
+                                                        <tr>
+                                                            <td colSpan={6} style={{ textAlign: 'center', opacity: 0.45, padding: '2.5rem' }}>
+                                                                📭 ไม่มีงานในช่วงนี้
+                                                            </td>
+                                                        </tr>
+                                                    ) : filteredTasks.map((task) => (
+                                                        <SortableRow key={task.id} id={task.id}>
+                                                            <td style={{ maxWidth: '220px' }}>
+                                                                <span style={{ textDecoration: task.completed ? 'line-through' : 'none', opacity: task.completed ? 0.55 : 1 }}>
+                                                                    {task.title}
+                                                                </span>
+                                                            </td>
+                                                            <td>
+                                                                <div className="admin-owner-cell">
+                                                                    <span
+                                                                        className="admin-owner-dot"
+                                                                        style={{ background: users.find((u) => u.uid === task.ownerId)?.color || '#6c5ce7' }}
+                                                                    />
+                                                                    {task.ownerNickname || task.ownerEmail || '—'}
+                                                                </div>
+                                                            </td>
+                                                            <td>{task.dueDate ? new Date(task.dueDate).toLocaleDateString('th-TH') : '—'}</td>
+                                                            <td>
+                                                                <span className={`admin-status-badge ${task.completed ? 'done' : 'pending'}`}>
+                                                                    {task.completed ? '✅ เสร็จ' : '⏳ ค้าง'}
+                                                                </span>
+                                                            </td>
+                                                            <td>
+                                                                <div style={{ display: 'flex', gap: '0.25rem' }}>
+                                                                    <button className="btn-icon" title="แก้ไข" onClick={() => setEditingTask(task)}>✏️</button>
+                                                                    <button className="btn-icon" title="ลบ" style={{ color: 'var(--danger-color)' }} onClick={() => handleDeleteTask(task)}>🗑️</button>
+                                                                </div>
+                                                            </td>
+                                                        </SortableRow>
+                                                    ))}
+                                                </tbody>
+                                            </table>
+                                        </SortableContext>
+                                    </DndContext>
                                 </div>
                             </div>
                         </div>
                     </div>
                 )}
 
-                {/* ── Users Tab ── */}
+                {/* Users Tab */}
                 {activeTab === 'users' && (
                     <div className="admin-panel-body">
                         <div className="admin-toolbar">
@@ -623,59 +665,70 @@ const AdminPanel = () => {
                             <button className="btn" onClick={() => setShowAddUser(true)}>+ เพิ่มผู้ใช้</button>
                         </div>
 
+                        <div style={{ fontSize: '0.75rem', opacity: 0.5, marginBottom: '0.5rem', textAlign: 'right' }}>⠿ ลากเพื่อเรียงลำดับผู้ใช้</div>
+
                         <div className="admin-table-wrap">
-                            <table className="admin-table">
-                                <thead>
-                                    <tr>
-                                        <th>ผู้ใช้</th>
-                                        <th>อีเมล</th>
-                                        <th>บทบาท</th>
-                                        <th>งาน</th>
-                                        <th>สมัครเมื่อ</th>
-                                        <th>จัดการ</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {filteredUsers.length === 0 ? (
-                                        <tr>
-                                            <td colSpan={6} style={{ textAlign: 'center', opacity: 0.45, padding: '2.5rem' }}>
-                                                👤 ไม่มีผู้ใช้
-                                            </td>
-                                        </tr>
-                                    ) : filteredUsers.map((u) => (
-                                        <tr key={u.uid}>
-                                            <td>
-                                                <div className="admin-user-cell">
-                                                    <span className="admin-user-avatar" style={{ background: u.color || '#6c5ce7' }}>
-                                                        {(u.nickname || u.email || '?')[0].toUpperCase()}
-                                                    </span>
-                                                    <strong>{u.nickname || '—'}</strong>
-                                                </div>
-                                            </td>
-                                            <td style={{ fontSize: '0.82rem', opacity: 0.75 }}>{u.email}</td>
-                                            <td>
-                                                <span className={`admin-role-badge ${u.role === 'admin' ? 'admin' : 'user'}`}>{u.role}</span>
-                                            </td>
-                                            <td>
-                                                <span className="admin-task-count-pill">{tasks.filter((t) => t.ownerId === u.uid).length} งาน</span>
-                                            </td>
-                                            <td style={{ fontSize: '0.82rem' }}>{formatDate(u.createdAt)}</td>
-                                            <td>
-                                                <div style={{ display: 'flex', gap: '0.25rem' }}>
-                                                    <button className="btn-icon" title="แก้ไข" onClick={() => setEditingUser(u)}>✏️</button>
-                                                    <button className="btn-icon" title="ลบ" style={{ color: 'var(--danger-color)' }} onClick={() => handleDeleteUser(u)}>🗑️</button>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
+                            <DndContext
+                                sensors={sensors}
+                                collisionDetection={closestCenter}
+                                onDragEnd={handleUserDragEnd}
+                            >
+                                <SortableContext items={filteredUsers.map((u) => u.uid)} strategy={verticalListSortingStrategy}>
+                                    <table className="admin-table">
+                                        <thead>
+                                            <tr>
+                                                <th style={{ width: '28px' }}></th>
+                                                <th>ผู้ใช้</th>
+                                                <th>อีเมล</th>
+                                                <th>บทบาท</th>
+                                                <th>งาน</th>
+                                                <th>สมัครเมื่อ</th>
+                                                <th>จัดการ</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {filteredUsers.length === 0 ? (
+                                                <tr>
+                                                    <td colSpan={7} style={{ textAlign: 'center', opacity: 0.45, padding: '2.5rem' }}>
+                                                        👤 ไม่มีผู้ใช้
+                                                    </td>
+                                                </tr>
+                                            ) : filteredUsers.map((u) => (
+                                                <SortableRow key={u.uid} id={u.uid}>
+                                                    <td>
+                                                        <div className="admin-user-cell">
+                                                            <span className="admin-user-avatar" style={{ background: u.color || '#6c5ce7' }}>
+                                                                {(u.nickname || u.email || '?')[0].toUpperCase()}
+                                                            </span>
+                                                            <strong>{u.nickname || '—'}</strong>
+                                                        </div>
+                                                    </td>
+                                                    <td style={{ fontSize: '0.82rem', opacity: 0.75 }}>{u.email}</td>
+                                                    <td>
+                                                        <span className={`admin-role-badge ${u.role === 'admin' ? 'admin' : 'user'}`}>{u.role}</span>
+                                                    </td>
+                                                    <td>
+                                                        <span className="admin-task-count-pill">{tasks.filter((t) => t.ownerId === u.uid).length} งาน</span>
+                                                    </td>
+                                                    <td style={{ fontSize: '0.82rem' }}>{formatDate(u.createdAt)}</td>
+                                                    <td>
+                                                        <div style={{ display: 'flex', gap: '0.25rem' }}>
+                                                            <button className="btn-icon" title="แก้ไข" onClick={() => setEditingUser(u)}>✏️</button>
+                                                            <button className="btn-icon" title="ลบ" style={{ color: 'var(--danger-color)' }} onClick={() => handleDeleteUser(u)}>🗑️</button>
+                                                        </div>
+                                                    </td>
+                                                </SortableRow>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </SortableContext>
+                            </DndContext>
                         </div>
                     </div>
                 )}
             </div>
 
-            {/* ── Modals ── */}
+            {/* Modals */}
             {showAddUser && <AddUserModal onClose={() => setShowAddUser(false)} onSave={handleAddUser} />}
             {editingUser && <EditUserModal user={editingUser} onClose={() => setEditingUser(null)} onSave={handleSaveUser} />}
             {showAddTask && <AddTaskModal users={users} onClose={() => setShowAddTask(false)} onSave={handleAddTask} />}
