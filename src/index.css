@@ -520,82 +520,7 @@ body.dark-mode .modal-box {
   font-size: 0.9rem;
 }
 
-/* ===== ADMIN PANEL ===== */
-.admin-tabs {
-  display: flex;
-  gap: 0.5rem;
-  margin-bottom: 1.5rem;
-  flex-wrap: wrap;
-}
-
-.admin-tab {
-  padding: 0.6rem 1.2rem;
-  border: 2px solid rgba(108, 92, 231, 0.3);
-  border-radius: 10px;
-  cursor: pointer;
-  font-weight: 600;
-  font-size: 0.88rem;
-  background: transparent;
-  color: var(--primary-color);
-  transition: all 0.2s;
-}
-
-.admin-tab.active {
-  background: var(--primary-color);
-  color: white;
-  border-color: var(--primary-color);
-}
-
-.admin-tab:hover:not(.active) {
-  background: rgba(108, 92, 231, 0.1);
-}
-
-.admin-table-wrap {
-  width: 100%;
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
-  border-radius: 12px;
-}
-
-.admin-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 0.88rem;
-  min-width: 500px;
-}
-
-.admin-table th {
-  text-align: left;
-  padding: 0.75rem 1rem;
-  background: rgba(108, 92, 231, 0.08);
-  font-weight: 600;
-  border-bottom: 2px solid rgba(108, 92, 231, 0.15);
-}
-
-.admin-table td {
-  padding: 0.7rem 1rem;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
-  vertical-align: middle;
-  word-break: break-word;
-}
-
-body.dark-mode .admin-table th {
-  background: rgba(108, 92, 231, 0.15);
-  border-bottom-color: rgba(108, 92, 231, 0.2);
-}
-
-body.dark-mode .admin-table td {
-  border-bottom-color: rgba(255, 255, 255, 0.05);
-}
-
-.admin-table tr:last-child td {
-  border-bottom: none;
-}
-
-.admin-table tr:hover td {
-  background: rgba(108, 92, 231, 0.04);
-}
-
+/* ===== BADGES (keep for dashboard use) ===== */
 .badge {
   display: inline-block;
   padding: 0.2rem 0.6rem;
@@ -614,6 +539,540 @@ body.dark-mode .admin-table td {
   color: var(--success-color);
 }
 
+/* ===== MODAL EXTRAS ===== */
+.modal-label {
+  font-size: 0.82rem;
+  opacity: 0.7;
+  display: block;
+  margin-bottom: 0.3rem;
+}
+
+.modal-check-label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
+  font-size: 0.9rem;
+}
+
+.btn-ghost {
+  background: rgba(0,0,0,0.08);
+  color: inherit;
+}
+
+body.dark-mode .btn-ghost {
+  background: rgba(255,255,255,0.1);
+}
+
+.btn-outline-white {
+  background: rgba(255,255,255,0.15);
+  color: white;
+  border: 1.5px solid rgba(255,255,255,0.35);
+  padding: 0.6rem 1.1rem;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 0.88rem;
+  cursor: pointer;
+  text-decoration: none;
+  transition: background 0.2s;
+  white-space: nowrap;
+}
+
+.btn-outline-white:hover {
+  background: rgba(255,255,255,0.25);
+}
+
+/* ===== ADMIN LAYOUT ===== */
+.admin-layout {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ===== ADMIN HEADER ===== */
+.admin-header-bar {
+  background: linear-gradient(135deg, #6c5ce7 0%, #a855f7 50%, #4f46e5 100%);
+  padding: 1.25rem 2rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  box-shadow: 0 4px 20px rgba(108, 92, 231, 0.35);
+}
+
+.admin-header-left {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.admin-header-icon {
+  font-size: 2rem;
+  filter: drop-shadow(0 2px 4px rgba(0,0,0,0.2));
+}
+
+.admin-header-title {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: white;
+  letter-spacing: -0.02em;
+}
+
+.admin-header-sub {
+  margin: 0;
+  font-size: 0.82rem;
+  color: rgba(255,255,255,0.72);
+}
+
+/* ===== ADMIN CONTENT ===== */
+.admin-content {
+  flex: 1;
+  max-width: 1400px;
+  width: 100%;
+  margin: 0 auto;
+  padding: 1.5rem;
+}
+
+/* ===== STAT CARDS ===== */
+.admin-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.admin-stat-card {
+  background: var(--glass-bg-light);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--glass-border-light);
+  border-radius: 16px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.07);
+  padding: 1.1rem 1rem;
+  text-align: center;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.admin-stat-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 8px 24px rgba(108,92,231,0.15);
+}
+
+body.dark-mode .admin-stat-card {
+  background: var(--glass-bg-dark);
+  border: 1px solid var(--glass-border-dark);
+}
+
+.admin-stat-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.25rem;
+  margin: 0 auto 0.6rem;
+}
+
+.admin-stat-value {
+  font-size: 1.8rem;
+  font-weight: 700;
+  line-height: 1;
+  margin-bottom: 0.25rem;
+}
+
+.admin-stat-label {
+  font-size: 0.76rem;
+  opacity: 0.6;
+}
+
+/* ===== TAB BAR ===== */
+.admin-tab-bar {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1.25rem;
+  flex-wrap: wrap;
+}
+
+.admin-tab-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.65rem 1.3rem;
+  border: 2px solid rgba(108, 92, 231, 0.25);
+  border-radius: 12px;
+  background: transparent;
+  color: var(--primary-color);
+  font-weight: 600;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.admin-tab-btn.active {
+  background: var(--primary-color);
+  color: white;
+  border-color: var(--primary-color);
+  box-shadow: 0 4px 14px rgba(108,92,231,0.3);
+}
+
+.admin-tab-btn:hover:not(.active) {
+  background: rgba(108, 92, 231, 0.08);
+}
+
+.admin-tab-count {
+  background: rgba(255,255,255,0.25);
+  border-radius: 20px;
+  padding: 0.1rem 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.admin-tab-btn:not(.active) .admin-tab-count {
+  background: rgba(108,92,231,0.12);
+  color: var(--primary-color);
+}
+
+/* ===== PANEL BODY ===== */
+.admin-panel-body {
+  background: var(--glass-bg-light);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--glass-border-light);
+  border-radius: 18px;
+  box-shadow: 0 4px 30px rgba(0,0,0,0.08);
+  overflow: hidden;
+}
+
+body.dark-mode .admin-panel-body {
+  background: var(--glass-bg-dark);
+  border-color: var(--glass-border-dark);
+}
+
+/* ===== FILTERS ROW ===== */
+.admin-filters-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  padding: 1.25rem 1.5rem;
+  border-bottom: 1px solid rgba(0,0,0,0.06);
+  background: rgba(108,92,231,0.03);
+}
+
+body.dark-mode .admin-filters-row {
+  border-bottom-color: rgba(255,255,255,0.06);
+  background: rgba(108,92,231,0.05);
+}
+
+.admin-filter-group {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
+.admin-filter-label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  opacity: 0.6;
+  white-space: nowrap;
+}
+
+.admin-period-tabs {
+  display: flex;
+  gap: 0.3rem;
+  flex-wrap: wrap;
+}
+
+.admin-period-tab {
+  padding: 0.35rem 0.75rem;
+  border: 1.5px solid rgba(108,92,231,0.25);
+  border-radius: 20px;
+  background: transparent;
+  color: var(--primary-color);
+  font-size: 0.8rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.18s;
+}
+
+.admin-period-tab.active {
+  background: var(--primary-color);
+  color: white;
+  border-color: var(--primary-color);
+}
+
+.admin-period-tab:hover:not(.active) {
+  background: rgba(108,92,231,0.1);
+}
+
+/* ===== TASK BODY (checklist + table) ===== */
+.admin-task-body {
+  display: flex;
+  gap: 0;
+  min-height: 300px;
+}
+
+/* ===== USER CHECKLIST SIDEBAR ===== */
+.admin-user-checklist {
+  width: 200px;
+  min-width: 160px;
+  max-width: 220px;
+  flex-shrink: 0;
+  border-right: 1px solid rgba(0,0,0,0.06);
+  display: flex;
+  flex-direction: column;
+}
+
+body.dark-mode .admin-user-checklist {
+  border-right-color: rgba(255,255,255,0.06);
+}
+
+.admin-checklist-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.9rem 1rem 0.5rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  opacity: 0.65;
+}
+
+.admin-checklist-all-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 0.75rem;
+  color: var(--primary-color);
+  font-weight: 600;
+  padding: 0;
+}
+
+.admin-checklist-items {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0 0.5rem 1rem;
+}
+
+.admin-checklist-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.45rem 0.6rem;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.15s;
+  font-size: 0.83rem;
+}
+
+.admin-checklist-item:hover {
+  background: rgba(108,92,231,0.07);
+}
+
+.admin-checklist-item.checked {
+  background: rgba(108,92,231,0.1);
+}
+
+.admin-checklist-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.admin-checklist-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.admin-checklist-count {
+  font-size: 0.72rem;
+  opacity: 0.5;
+  flex-shrink: 0;
+}
+
+/* ===== TASK MAIN ===== */
+.admin-task-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.admin-toolbar {
+  display: flex;
+  gap: 0.75rem;
+  padding: 1rem 1.25rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.admin-result-info {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0 1.25rem 0.6rem;
+  font-size: 0.8rem;
+  flex-wrap: wrap;
+}
+
+.admin-selection-badge {
+  background: rgba(108,92,231,0.1);
+  color: var(--primary-color);
+  border-radius: 20px;
+  padding: 0.2rem 0.65rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.admin-clear-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 0.78rem;
+  color: var(--primary-color);
+  text-decoration: underline;
+  padding: 0;
+}
+
+.admin-count-text {
+  opacity: 0.55;
+}
+
+/* ===== TABLE ===== */
+.admin-table-wrap {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.admin-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+  min-width: 480px;
+}
+
+.admin-table th {
+  text-align: left;
+  padding: 0.75rem 1rem;
+  background: rgba(108,92,231,0.06);
+  font-weight: 600;
+  font-size: 0.8rem;
+  border-bottom: 2px solid rgba(108,92,231,0.12);
+  white-space: nowrap;
+}
+
+.admin-table td {
+  padding: 0.7rem 1rem;
+  border-bottom: 1px solid rgba(0,0,0,0.045);
+  vertical-align: middle;
+  word-break: break-word;
+}
+
+body.dark-mode .admin-table th {
+  background: rgba(108,92,231,0.12);
+  border-bottom-color: rgba(108,92,231,0.18);
+}
+
+body.dark-mode .admin-table td {
+  border-bottom-color: rgba(255,255,255,0.05);
+}
+
+.admin-table tr:last-child td { border-bottom: none; }
+
+.admin-table tbody tr:hover td {
+  background: rgba(108,92,231,0.04);
+}
+
+/* ===== OWNER CELL ===== */
+.admin-owner-cell {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.admin-owner-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+/* ===== STATUS BADGE ===== */
+.admin-status-badge {
+  display: inline-block;
+  padding: 0.22rem 0.65rem;
+  border-radius: 20px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.admin-status-badge.done {
+  background: rgba(0,184,148,0.15);
+  color: var(--success-color);
+}
+
+.admin-status-badge.pending {
+  background: rgba(225,112,85,0.12);
+  color: #e17055;
+}
+
+/* ===== ROLE BADGE ===== */
+.admin-role-badge {
+  display: inline-block;
+  padding: 0.22rem 0.65rem;
+  border-radius: 20px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.admin-role-badge.admin {
+  background: rgba(108,92,231,0.15);
+  color: var(--primary-color);
+}
+
+.admin-role-badge.user {
+  background: rgba(0,184,148,0.12);
+  color: var(--success-color);
+}
+
+/* ===== USER CELL ===== */
+.admin-user-cell {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.admin-user-avatar {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-size: 0.78rem;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+/* ===== TASK COUNT PILL ===== */
+.admin-task-count-pill {
+  background: rgba(108,92,231,0.1);
+  color: var(--primary-color);
+  border-radius: 20px;
+  padding: 0.18rem 0.6rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
 /* ===== RESPONSIVE: TABLET (max 900px) ===== */
 @media (max-width: 900px) {
   .dashboard-grid {
@@ -623,6 +1082,19 @@ body.dark-mode .admin-table td {
   .analytics-chart-wrap {
     max-width: 220px;
     margin: 0 auto;
+  }
+
+  .admin-header-bar {
+    padding: 1rem 1.25rem;
+  }
+
+  .admin-content {
+    padding: 1rem;
+  }
+
+  .admin-user-checklist {
+    width: 160px;
+    min-width: 140px;
   }
 }
 
@@ -667,8 +1139,67 @@ body.dark-mode .admin-table td {
     padding: 2rem 1.25rem;
   }
 
-  .admin-tab {
+  /* Admin Panel mobile */
+  .admin-header-bar {
+    padding: 1rem;
+  }
+
+  .admin-header-title {
+    font-size: 1.15rem;
+  }
+
+  .admin-content {
+    padding: 0.75rem;
+  }
+
+  .admin-stats-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.65rem;
+  }
+
+  .admin-stat-value {
+    font-size: 1.4rem;
+  }
+
+  .admin-task-body {
+    flex-direction: column;
+  }
+
+  .admin-user-checklist {
+    width: 100%;
+    max-width: 100%;
+    border-right: none;
+    border-bottom: 1px solid rgba(0,0,0,0.06);
+  }
+
+  body.dark-mode .admin-user-checklist {
+    border-bottom-color: rgba(255,255,255,0.06);
+  }
+
+  .admin-checklist-items {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem;
+    padding: 0 0.75rem 0.75rem;
+    max-height: 150px;
+    overflow-y: auto;
+  }
+
+  .admin-checklist-item {
+    flex: 0 0 auto;
+    padding: 0.3rem 0.6rem;
+  }
+
+  .admin-filters-row {
+    padding: 0.9rem 1rem;
+  }
+
+  .admin-toolbar {
+    padding: 0.85rem 1rem;
+  }
+
+  .admin-tab-btn {
     font-size: 0.82rem;
-    padding: 0.5rem 0.9rem;
+    padding: 0.55rem 0.9rem;
   }
 }
