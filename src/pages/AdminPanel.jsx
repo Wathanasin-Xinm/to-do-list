@@ -20,21 +20,14 @@ import {
     updateCategory,
     deleteCategory,
 } from '../services/taskService';
-import {
-    DndContext,
-    closestCenter,
-    PointerSensor,
-    useSensor,
-    useSensors,
-    DragOverlay,
-} from '@dnd-kit/core';
-import {
-    SortableContext,
-    verticalListSortingStrategy,
-    useSortable,
-    arrayMove,
-} from '@dnd-kit/sortable';
-import { CSS } from '@dnd-kit/utilities';
+import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
+import ReactDOM from 'react-dom';
+
+const arrayMove = (array, from, to) => {
+    const newArray = array.slice();
+    newArray.splice(to < 0 ? newArray.length + to : to, 0, newArray.splice(from, 1)[0]);
+    return newArray;
+};
 
 const TH_MONTHS = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
 
@@ -129,23 +122,31 @@ const isSameMonth = (d1, d2) =>
 
 const isSameYear = (d1, d2) => d1.getFullYear() === d2.getFullYear();
 
-// ─── Sortable Row Wrapper ─────────────────────────────────────────────────────
-const SortableRow = ({ id, children }) => {
-    const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
-    const style = {
-        transform: CSS.Transform.toString(transform),
-        transition,
-        opacity: isDragging ? 0.4 : 1,
-        background: isDragging ? 'var(--bg-panel)' : 'transparent',
-        zIndex: isDragging ? 1 : 0,
-        position: 'relative'
-    };
-    return (
-        <tr ref={setNodeRef} style={style}>
-            <td className="drag-handle" {...attributes} {...listeners} title="ลากเพื่อเรียงลำดับ">⠿</td>
+// ─── Admin Row Wrapper ────────────────────────────────────────────────────────
+const AdminRow = ({ id, index, children, provided, snapshot }) => {
+    const child = (
+        <tr
+            ref={provided.innerRef}
+            {...provided.draggableProps}
+            className={`${snapshot.isDragging ? 'dragging-row' : ''}`}
+            style={{
+                ...provided.draggableProps.style,
+            }}
+        >
+            <td className="drag-handle" {...provided.dragHandleProps} title="ลากเพื่อเรียงลำดับ">⠿</td>
             {children}
         </tr>
     );
+
+    if (snapshot.isDragging) {
+        return ReactDOM.createPortal(
+            <table className="admin-table" style={{ width: '100%', tableLayout: 'fixed' }}>
+                <tbody>{child}</tbody>
+            </table>,
+            document.body
+        );
+    }
+    return child;
 };
 
 // ─── Modals ───────────────────────────────────────────────────────────────────
@@ -445,10 +446,7 @@ const AdminPanel = () => {
     const [showAddCategory, setShowAddCategory] = useState(false);
     const [editingCategory, setEditingCategory] = useState(null);
     const [searchUser, setSearchUser] = useState('');
-    const [activeId, setActiveId] = useState(null);
     const [nowMs, setNowMs] = useState(Date.now());
-
-    const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
 
     // ── Timer ─────────────────────────────────────────────────────────────
     useEffect(() => {
@@ -604,34 +602,37 @@ const AdminPanel = () => {
         }
     };
 
-    // ── Drag & Drop Handlers ──────────────────────────────────────────────────
-    const handleDragStart = ({ active }) => setActiveId(active.id);
-
-    const handleTaskDragEnd = useCallback(async ({ active, over }) => {
-        setActiveId(null);
-        if (!over || active.id === over.id) return;
+    const onTaskDragEnd = (result) => {
+        if (!result.destination) return;
+        
+        const oldIndex = result.source.index;
+        const newIndex = result.destination.index;
+        if (oldIndex === newIndex) return;
 
         setTasks((prev) => {
-            const oldIndex = prev.findIndex((t) => t.id === active.id);
-            const newIndex = prev.findIndex((t) => t.id === over.id);
-            const reordered = arrayMove(prev, oldIndex, newIndex);
-            updateTaskOrderAdmin(reordered).catch(() => toast.error('ไม่สามารถบันทึกการเรียงลำดับได้'));
-            return reordered;
+            const oldTaskId = filteredTasks[oldIndex].id;
+            const newTaskId = filteredTasks[newIndex].id;
+            const finalFullList = arrayMove(prev, prev.findIndex(t => t.id === oldTaskId), prev.findIndex(t => t.id === newTaskId));
+            updateTaskOrderAdmin(finalFullList).catch(() => toast.error('ไม่สามารถบันทึกการเรียงลำดับได้'));
+            return finalFullList;
         });
-    }, []);
+    };
 
-    const handleUserDragEnd = useCallback(async ({ active, over }) => {
-        setActiveId(null);
-        if (!over || active.id === over.id) return;
+    const onUserDragEnd = (result) => {
+        if (!result.destination) return;
+        
+        const oldIndex = result.source.index;
+        const newIndex = result.destination.index;
+        if (oldIndex === newIndex) return;
 
         setUsers((prev) => {
-            const oldIndex = prev.findIndex((u) => u.uid === active.id);
-            const newIndex = prev.findIndex((u) => u.uid === over.id);
-            const reordered = arrayMove(prev, oldIndex, newIndex);
-            updateUserOrder(reordered).catch(() => toast.error('ไม่สามารถบันทึกการเรียงลำดับได้'));
-            return reordered;
+            const oldUserId = filteredUsers[oldIndex].uid;
+            const newUserId = filteredUsers[newIndex].uid;
+            const finalFullList = arrayMove(prev, prev.findIndex(u => u.uid === oldUserId), prev.findIndex(u => u.uid === newUserId));
+            updateUserOrder(finalFullList).catch(() => toast.error('ไม่สามารถบันทึกการเรียงลำดับได้'));
+            return finalFullList;
         });
-    }, []);
+    };
 
     const stats = [
         { label: 'ผู้ใช้ทั้งหมด', value: users.length, icon: '👥', color: '#6c5ce7' },
@@ -766,87 +767,80 @@ const AdminPanel = () => {
                                 </div>
 
                                 <div className="admin-table-wrap">
-                                    <DndContext
-                                        sensors={sensors}
-                                        collisionDetection={closestCenter}
-                                        onDragStart={handleDragStart}
-                                        onDragEnd={handleTaskDragEnd}
-                                    >
-                                        <SortableContext items={filteredTasks.map((t) => t.id)} strategy={verticalListSortingStrategy}>
-                                            <table className="admin-table">
-                                                <thead>
-                                                    <tr>
-                                                        <th style={{ width: '28px' }}></th>
-                                                        <th>ชื่องาน</th>
-                                                        <th>เจ้าของ</th>
-                                                        <th>ครบกำหนด</th>
-                                                        <th>สถานะ</th>
-                                                        <th>จัดการ</th>
-                                                    </tr>
-                                                </thead>
-                                                <tbody>
-                                                    {filteredTasks.length === 0 ? (
+                                    <DragDropContext onDragEnd={onTaskDragEnd}>
+                                        <Droppable droppableId="adminTasks">
+                                            {(provided) => (
+                                                <table className="admin-table" {...provided.droppableProps} ref={provided.innerRef}>
+                                                    <thead>
                                                         <tr>
-                                                            <td colSpan={6} style={{ textAlign: 'center', opacity: 0.45, padding: '2.5rem' }}>
-                                                                📭 ไม่มีงานในช่วงนี้
-                                                            </td>
+                                                            <th style={{ width: '28px' }}></th>
+                                                            <th>ชื่องาน</th>
+                                                            <th className="hide-mobile">เจ้าของ</th>
+                                                            <th className="hide-mobile">ครบกำหนด</th>
+                                                            <th>สถานะ</th>
+                                                            <th>จัดการ</th>
                                                         </tr>
-                                                    ) : filteredTasks.map((task) => (
-                                                        <SortableRow key={task.id} id={task.id}>
-                                                            <td style={{ maxWidth: '220px' }}>
-                                                                <span style={{ textDecoration: task.completed ? 'line-through' : 'none', opacity: task.completed ? 0.55 : 1 }}>
-                                                                    {task.title}
-                                                                    {task.expirationMode === 'B' && !task.completed && (
-                                                                        <span style={{ fontSize: '0.7rem', background: '#d6303120', color: '#d63031', padding: '1px 4px', borderRadius: '4px', marginLeft: '0.4rem', border: '1px solid #d6303140' }}>
-                                                                            🗑️ ลบอัตโนมัติ
-                                                                        </span>
-                                                                    )}
-                                                                    <ExpirationBadge task={task} nowMs={nowMs} />
-                                                                </span>
-                                                            </td>
-                                                            <td>
-                                                                <div className="admin-owner-cell">
-                                                                    <span
-                                                                        className="admin-owner-dot"
-                                                                        style={{ background: users.find((u) => u.uid === task.ownerId)?.color || '#6c5ce7' }}
-                                                                    />
-                                                                    {task.ownerNickname || task.ownerEmail || '—'}
-                                                                </div>
-                                                            </td>
-                                                            <td>{task.dueDate ? new Date(task.dueDate).toLocaleDateString('th-TH') : '—'}</td>
-                                                            <td>
-                                                                <span className={`admin-status-badge ${task.completed ? 'done' : 'pending'}`}>
-                                                                    {task.completed ? '✅ เสร็จ' : '⏳ ค้าง'}
-                                                                </span>
-                                                            </td>
-                                                            <td>
-                                                                <div style={{ display: 'flex', gap: '0.25rem' }}>
-                                                                    <button className="btn-icon" title="แก้ไข" onClick={() => setEditingTask(task)}>✏️</button>
-                                                                    <button className="btn-icon" title="ลบ" style={{ color: 'var(--danger-color)' }} onClick={() => handleDeleteTask(task)}>🗑️</button>
-                                                                </div>
-                                                            </td>
-                                                        </SortableRow>
-                                                    ))}
-                                                </tbody>
-                                            </table>
-                                        </SortableContext>
-                                        <DragOverlay>
-                                            {activeTask ? (
-                                                <table className="admin-table">
+                                                    </thead>
                                                     <tbody>
-                                                        <tr className="drag-overlay">
-                                                            <td className="drag-handle">⠿</td>
-                                                            <td>{activeTask.title}</td>
-                                                            <td>{activeTask.ownerNickname || activeTask.ownerEmail}</td>
-                                                            <td>{activeTask.dueDate}</td>
-                                                            <td>{activeTask.completed ? '✅ เสร็จ' : '⏳ ค้าง'}</td>
-                                                            <td></td>
-                                                        </tr>
+                                                        {filteredTasks.length === 0 ? (
+                                                            <tr>
+                                                                <td colSpan={6} style={{ textAlign: 'center', opacity: 0.45, padding: '2.5rem' }}>
+                                                                    📭 ไม่มีงานในช่วงนี้
+                                                                </td>
+                                                            </tr>
+                                                        ) : (
+                                                            filteredTasks.map((task, index) => (
+                                                                <Draggable key={task.id} draggableId={task.id} index={index}>
+                                                                    {(dragProvided, dragSnapshot) => (
+                                                                        <AdminRow
+                                                                            id={task.id}
+                                                                            index={index}
+                                                                            provided={dragProvided}
+                                                                            snapshot={dragSnapshot}
+                                                                        >
+                                                                            <td style={{ maxWidth: '220px' }}>
+                                                                                <span style={{ textDecoration: task.completed ? 'line-through' : 'none', opacity: task.completed ? 0.55 : 1 }}>
+                                                                                    {task.title}
+                                                                                    {task.expirationMode === 'B' && !task.completed && (
+                                                                                        <span style={{ fontSize: '0.7rem', background: '#d6303120', color: '#d63031', padding: '1px 4px', borderRadius: '4px', marginLeft: '0.4rem', border: '1px solid #d6303140' }}>
+                                                                                            🗑️ ลบอัตโนมัติ
+                                                                                        </span>
+                                                                                    )}
+                                                                                    <ExpirationBadge task={task} nowMs={nowMs} />
+                                                                                </span>
+                                                                            </td>
+                                                                            <td className="hide-mobile">
+                                                                                <div className="admin-owner-cell">
+                                                                                    <span
+                                                                                        className="admin-owner-dot"
+                                                                                        style={{ background: users.find((u) => u.uid === task.ownerId)?.color || '#6c5ce7' }}
+                                                                                    />
+                                                                                    {task.ownerNickname || task.ownerEmail || '—'}
+                                                                                </div>
+                                                                            </td>
+                                                                            <td className="hide-mobile">{task.dueDate ? new Date(task.dueDate).toLocaleDateString('th-TH') : '—'}</td>
+                                                                            <td>
+                                                                                <span className={`admin-status-badge ${task.completed ? 'done' : 'pending'}`}>
+                                                                                    {task.completed ? '✅ เสร็จ' : '⏳ ค้าง'}
+                                                                                </span>
+                                                                            </td>
+                                                                            <td>
+                                                                                <div className="task-actions">
+                                                                                    <button className="btn-icon" title="แก้ไข" onClick={() => setEditingTask(task)}>✏️</button>
+                                                                                    <button className="btn-icon" title="ลบ" style={{ color: 'var(--danger-color)' }} onClick={() => handleDeleteTask(task)}>🗑️</button>
+                                                                                </div>
+                                                                            </td>
+                                                                        </AdminRow>
+                                                                    )}
+                                                                </Draggable>
+                                                            ))
+                                                        )}
+                                                        {provided.placeholder}
                                                     </tbody>
                                                 </table>
-                                            ) : null}
-                                        </DragOverlay>
-                                    </DndContext>
+                                            )}
+                                        </Droppable>
+                                    </DragDropContext>
                                 </div>
                             </div>
                         </div>
@@ -869,79 +863,71 @@ const AdminPanel = () => {
                         <div style={{ fontSize: '0.75rem', opacity: 0.5, marginBottom: '0.5rem', textAlign: 'right' }}>⠿ ลากเพื่อเรียงลำดับผู้ใช้</div>
 
                         <div className="admin-table-wrap">
-                            <DndContext
-                                sensors={sensors}
-                                collisionDetection={closestCenter}
-                                onDragStart={handleDragStart}
-                                onDragEnd={handleUserDragEnd}
-                            >
-                                <SortableContext items={filteredUsers.map((u) => u.uid)} strategy={verticalListSortingStrategy}>
-                                    <table className="admin-table">
-                                        <thead>
-                                            <tr>
-                                                <th style={{ width: '28px' }}></th>
-                                                <th>ผู้ใช้</th>
-                                                <th>อีเมล</th>
-                                                <th>บทบาท</th>
-                                                <th>งาน</th>
-                                                <th>สมัครเมื่อ</th>
-                                                <th>จัดการ</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {filteredUsers.length === 0 ? (
+                            <DragDropContext onDragEnd={onUserDragEnd}>
+                                <Droppable droppableId="adminUsers">
+                                    {(provided) => (
+                                        <table className="admin-table" {...provided.droppableProps} ref={provided.innerRef}>
+                                            <thead>
                                                 <tr>
-                                                    <td colSpan={7} style={{ textAlign: 'center', opacity: 0.45, padding: '2.5rem' }}>
-                                                        👤 ไม่มีผู้ใช้
-                                                    </td>
+                                                    <th style={{ width: '28px' }}></th>
+                                                    <th>ผู้ใช้</th>
+                                                    <th className="hide-mobile">อีเมล</th>
+                                                    <th>บทบาท</th>
+                                                    <th className="hide-mobile">งาน</th>
+                                                    <th className="hide-tablet">สมัครเมื่อ</th>
+                                                    <th>จัดการ</th>
                                                 </tr>
-                                            ) : filteredUsers.map((u) => (
-                                                <SortableRow key={u.uid} id={u.uid}>
-                                                    <td>
-                                                        <div className="admin-user-cell">
-                                                            <span className="admin-user-avatar" style={{ background: u.color || '#6c5ce7' }}>
-                                                                {(u.nickname || u.email || '?')[0].toUpperCase()}
-                                                            </span>
-                                                            <strong>{u.nickname || '—'}</strong>
-                                                        </div>
-                                                    </td>
-                                                    <td style={{ fontSize: '0.82rem', opacity: 0.75 }}>{u.email}</td>
-                                                    <td>
-                                                        <span className={`admin-role-badge ${u.role === 'admin' ? 'admin' : 'user'}`}>{u.role}</span>
-                                                    </td>
-                                                    <td>
-                                                        <span className="admin-task-count-pill">{tasks.filter((t) => t.ownerId === u.uid).length} งาน</span>
-                                                    </td>
-                                                    <td style={{ fontSize: '0.82rem' }}>{formatDate(u.createdAt)}</td>
-                                                    <td>
-                                                        <div style={{ display: 'flex', gap: '0.25rem' }}>
-                                                            <button className="btn-icon" title="แก้ไข" onClick={() => setEditingUser(u)}>✏️</button>
-                                                            <button className="btn-icon" title="ลบ" style={{ color: 'var(--danger-color)' }} onClick={() => handleDeleteUser(u)}>🗑️</button>
-                                                        </div>
-                                                    </td>
-                                                </SortableRow>
-                                            ))}
-                                        </tbody>
-                                    </table>
-                                </SortableContext>
-                                <DragOverlay>
-                                    {activeUser ? (
-                                        <table className="admin-table">
+                                            </thead>
                                             <tbody>
-                                                <tr className="drag-overlay">
-                                                    <td className="drag-handle">⠿</td>
-                                                    <td>{activeUser.nickname || activeUser.email}</td>
-                                                    <td>{activeUser.email}</td>
-                                                    <td>{activeUser.role}</td>
-                                                    <td></td>
-                                                    <td></td>
-                                                    <td></td>
-                                                </tr>
+                                                {filteredUsers.length === 0 ? (
+                                                    <tr>
+                                                        <td colSpan={7} style={{ textAlign: 'center', opacity: 0.45, padding: '2.5rem' }}>
+                                                            👤 ไม่มีผู้ใช้
+                                                        </td>
+                                                    </tr>
+                                                ) : (
+                                                    filteredUsers.map((u, index) => (
+                                                        <Draggable key={u.uid} draggableId={u.uid} index={index}>
+                                                            {(dragProvided, dragSnapshot) => (
+                                                                <AdminRow
+                                                                    id={u.uid}
+                                                                    index={index}
+                                                                    provided={dragProvided}
+                                                                    snapshot={dragSnapshot}
+                                                                >
+                                                                    <td>
+                                                                        <div className="admin-user-cell">
+                                                                            <span className="admin-user-avatar" style={{ background: u.color || '#6c5ce7' }}>
+                                                                                {(u.nickname || u.email || '?')[0].toUpperCase()}
+                                                                            </span>
+                                                                            <strong>{u.nickname || '—'}</strong>
+                                                                        </div>
+                                                                    </td>
+                                                                    <td className="hide-mobile" style={{ fontSize: '0.82rem', opacity: 0.75 }}>{u.email}</td>
+                                                                    <td>
+                                                                        <span className={`admin-role-badge ${u.role === 'admin' ? 'admin' : 'user'}`}>{u.role}</span>
+                                                                    </td>
+                                                                    <td className="hide-mobile">
+                                                                        <span className="admin-task-count-pill">{tasks.filter((t) => t.ownerId === u.uid).length} งาน</span>
+                                                                    </td>
+                                                                    <td className="hide-tablet" style={{ fontSize: '0.82rem' }}>{formatDate(u.createdAt)}</td>
+                                                                    <td>
+                                                                        <div className="task-actions">
+                                                                            <button className="btn-icon" title="แก้ไข" onClick={() => setEditingUser(u)}>✏️</button>
+                                                                            <button className="btn-icon" title="ลบ" style={{ color: 'var(--danger-color)' }} onClick={() => handleDeleteUser(u)}>🗑️</button>
+                                                                        </div>
+                                                                    </td>
+                                                                </AdminRow>
+                                                            )}
+                                                        </Draggable>
+                                                    ))
+                                                )}
+                                                {provided.placeholder}
                                             </tbody>
                                         </table>
-                                    ) : null}
-                                </DragOverlay>
-                            </DndContext>
+                                    )}
+                                </Droppable>
+                            </DragDropContext>
                         </div>
                     </div>
                 )}

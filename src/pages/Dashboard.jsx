@@ -16,21 +16,14 @@ import { logoutUser } from '../services/authService';
 import { toast } from 'react-toastify';
 import { Doughnut } from 'react-chartjs-2';
 import 'chart.js/auto';
-import {
-    DndContext,
-    closestCenter,
-    PointerSensor,
-    useSensor,
-    useSensors,
-    DragOverlay,
-} from '@dnd-kit/core';
-import {
-    SortableContext,
-    verticalListSortingStrategy,
-    useSortable,
-    arrayMove,
-} from '@dnd-kit/sortable';
-import { CSS } from '@dnd-kit/utilities';
+import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
+import ReactDOM from 'react-dom';
+
+const arrayMove = (array, from, to) => {
+    const newArray = array.slice();
+    newArray.splice(to < 0 ? newArray.length + to : to, 0, newArray.splice(from, 1)[0]);
+    return newArray;
+};
 
 const DEFAULT_CATEGORIES = [
     { name: '🚨 เร่งด่วน', color: '#c0392b' }, // Darker Red
@@ -339,30 +332,22 @@ const EditModal = ({ task, categories, onClose, onSave }) => {
     );
 };
 
-// ─── Sortable Task Item ───────────────────────────────────────────────────────
-const SortableTaskItem = ({ task, categories, nowMs, onToggle, onDelete, onEdit }) => {
-    const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: task.id });
+// ─── Task Item ───────────────────────────────────────────────────────────────
+const TaskItem = ({ task, categories, nowMs, onToggle, onDelete, onEdit, provided, snapshot }) => {
     const category = categories?.find(c => c.id === task.categoryId);
     const isExpired = getExpirationStatus(task, nowMs) === 'expired';
 
-    const style = {
-        transform: CSS.Transform.toString(transform),
-        transition,
-        opacity: isDragging ? 0.4 : 1,
-    };
-
-    return (
+    const child = (
         <li
-            ref={setNodeRef}
-            style={style}
-            className={`task-item${task.completed ? ' completed' : ''} ${isExpired ? ' expired-item' : ''}`}
+            ref={provided.innerRef}
+            {...provided.draggableProps}
+            {...provided.dragHandleProps}
+            className={`task-item${task.completed ? ' completed' : ''} ${isExpired ? ' expired-item' : ''} ${snapshot.isDragging ? 'dragging' : ''}`}
+            style={{
+                ...provided.draggableProps.style,
+            }}
         >
-            <span
-                className="drag-handle"
-                {...attributes}
-                {...listeners}
-                title="ลากเพื่อเรียงลำดับ"
-            >⠿</span>
+            <span className="drag-handle" title="ลากเพื่อเรียงลำดับ">⠿</span>
             <div className="task-left">
                 <input
                     type="checkbox"
@@ -405,6 +390,11 @@ const SortableTaskItem = ({ task, categories, nowMs, onToggle, onDelete, onEdit 
             </div>
         </li>
     );
+
+    if (snapshot.isDragging) {
+        return ReactDOM.createPortal(child, document.body);
+    }
+    return child;
 };
 
 // ─── Dashboard ────────────────────────────────────────────────────────────────
@@ -427,10 +417,7 @@ const Dashboard = () => {
     const [period, setPeriod] = useState('all');
     const [anchor, setAnchor] = useState(isoToday());
     const [editingTask, setEditingTask] = useState(null);
-    const [activeId, setActiveId] = useState(null);
     const [nowMs, setNowMs] = useState(Date.now());
-
-    const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
 
     // ── Filtering & Analytics ──────────────────────────────────────────────────
     const range = useMemo(() => getRangeForPeriod(period, anchor), [period, anchor]);
@@ -591,21 +578,25 @@ const Dashboard = () => {
         }
     };
 
-    // ── Drag & Drop Handlers for @dnd-kit ──
-    const handleDragStart = ({ active }) => setActiveId(active.id);
-
-    const handleDragEnd = useCallback(async ({ active, over }) => {
-        setActiveId(null);
-        if (!over || active.id === over.id) return;
+    const onDragEnd = (result) => {
+        if (!result.destination) return;
+        
+        const oldIndex = result.source.index;
+        const newIndex = result.destination.index;
+        if (oldIndex === newIndex) return;
 
         setTasks((prev) => {
-            const oldIndex = prev.findIndex((t) => t.id === active.id);
-            const newIndex = prev.findIndex((t) => t.id === over.id);
-            const reordered = arrayMove(prev, oldIndex, newIndex);
-            updateTaskOrder(reordered).catch(() => toast.error('ไม่สามารถบันทึกการเรียงลำดับได้'));
-            return reordered;
+            // Find IDs of items in the filtered view
+            const oldTaskId = filteredTasks[oldIndex].id;
+            const newTaskId = filteredTasks[newIndex].id;
+            
+            // Map indexes back to the main list
+            const finalFullList = arrayMove(prev, prev.findIndex(t => t.id === oldTaskId), prev.findIndex(t => t.id === newTaskId));
+            
+            updateTaskOrder(finalFullList).catch(() => toast.error('ไม่สามารถบันทึกการเรียงลำดับได้'));
+            return finalFullList;
         });
-    }, []);
+    };
 
     const chartData = {
         labels: ['เสร็จแล้ว', 'ยังค้างอยู่', 'หมดเวลา'],
@@ -618,7 +609,6 @@ const Dashboard = () => {
 
     const displayName = userData?.nickname || user?.email || '';
     const isToday = anchor === isoToday();
-    const activeTask = tasks.find((t) => t.id === activeId);
 
     return (
         <div className="container">
@@ -645,7 +635,7 @@ const Dashboard = () => {
             </header>
 
             <div className="dashboard-grid">
-                <section className="glass-panel" style={{ padding: '1.5rem' }}>
+                <section className="glass-panel" style={{  }}>
                     <form onSubmit={handleAdd} className="add-task-form-wrap">
                         <div className="add-task-row">
                             <input
@@ -777,7 +767,8 @@ const Dashboard = () => {
                         </div>
                         
                         {isCategoryDropdownOpen && (
-                            <div className="category-dropdown-content">
+                            <div className={`category-dropdown-content ${isCategoryDropdownOpen ? 'open' : ''}`}>
+                                <div className="dropdown-header" style={{ padding: '0.4rem 0.8rem', fontSize: '0.75rem', opacity: 0.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>เลือกหมวดหมู่</div>
                                 <label className={`dropdown-item ${categoryFilters.length === 0 ? 'active' : ''}`}>
                                     <input 
                                         type="checkbox" 
@@ -826,44 +817,38 @@ const Dashboard = () => {
                             {period !== 'all' ? `ไม่มีงานใน${PERIOD_LABELS[period]}นี้` : 'ยังไม่มีงาน — เพิ่มงานแรกของคุณ!'}
                         </div>
                     ) : (
-                        <DndContext
-                            sensors={sensors}
-                            collisionDetection={closestCenter}
-                            onDragStart={handleDragStart}
-                            onDragEnd={handleDragEnd}
-                        >
-                            <SortableContext items={filteredTasks.map((t) => t.id)} strategy={verticalListSortingStrategy}>
-                                <ul className="task-list">
-                                    {filteredTasks.map((task) => (
-                                        <SortableTaskItem
-                                            key={task.id}
-                                            task={task}
-                                            categories={categories}
-                                            nowMs={nowMs}
-                                            onToggle={handleToggle}
-                                            onDelete={handleDelete}
-                                            onEdit={setEditingTask}
-                                        />
-                                    ))}
-                                </ul>
-                            </SortableContext>
-                            <DragOverlay>
-                                {activeTask ? (
-                                    <li className="task-item drag-overlay">
-                                        <span className="drag-handle">⠿</span>
-                                        <div className="task-info">
-                                            <div className="task-title">{activeTask.title}</div>
-                                        </div>
-                                    </li>
-                                ) : null}
-                            </DragOverlay>
-                        </DndContext>
+                        <DragDropContext onDragEnd={onDragEnd}>
+                            <Droppable droppableId="tasks">
+                                {(provided) => (
+                                    <ul className="task-list" {...provided.droppableProps} ref={provided.innerRef}>
+                                        {filteredTasks.map((task, index) => (
+                                            <Draggable key={task.id} draggableId={task.id} index={index}>
+                                                {(dragProvided, dragSnapshot) => (
+                                                    <TaskItem
+                                                        task={task}
+                                                        index={index}
+                                                        categories={categories}
+                                                        nowMs={nowMs}
+                                                        onToggle={handleToggle}
+                                                        onDelete={handleDelete}
+                                                        onEdit={setEditingTask}
+                                                        provided={dragProvided}
+                                                        snapshot={dragSnapshot}
+                                                    />
+                                                )}
+                                            </Draggable>
+                                        ))}
+                                        {provided.placeholder}
+                                    </ul>
+                                )}
+                            </Droppable>
+                        </DragDropContext>
                     )}
                 </section>
 
                 <aside className="glass-panel analytics-panel">
-                    <h3>📊 สถิติ</h3>
-                    <div className="analytics-chart-wrap" style={{ position: 'relative', height: '190px' }}>
+                    <h3 style={{ gridColumn: '1 / -1', margin: '0 0 0.5rem' }}>📊 สถิติ</h3>
+                    <div className="analytics-chart-wrap" style={{ position: 'relative' }}>
                         <Doughnut data={chartData} options={{ maintainAspectRatio: false }} />
                     </div>
                     <div className="analytics-stats">
