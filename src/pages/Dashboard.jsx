@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { Link } from 'react-router-dom';
 import {
@@ -10,6 +10,7 @@ import {
     updateTask,
     updateTaskOrder,
     subscribeToCategories,
+    addCategory,
 } from '../services/taskService';
 import { logoutUser } from '../services/authService';
 import { toast } from 'react-toastify';
@@ -30,6 +31,14 @@ import {
     arrayMove,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
+
+const DEFAULT_CATEGORIES = [
+    { name: '🚨 เร่งด่วน', color: '#c0392b' }, // Darker Red
+    { name: '⚠️ จำเป็นต้องทำ', color: '#d35400' }, // Darker Orange
+    { name: '📝 ต้องทำ', color: '#2980b9' }, // Darker Blue
+    { name: '🍃 ทำก็ได้ไม่ทำก็ได้', color: '#27ae60' }, // Darker Green
+    { name: '🧊 ไม่จำเป็นต้องทำ', color: '#7f8c8d' }, // Darker Gray
+];
 
 // ─── Date Helpers ─────────────────────────────────────────────────────────────
 const isoToday = () => {
@@ -142,16 +151,31 @@ const getExpirationStatus = (task, nowMs) => {
     if (!exAt) return null;
     const diffMs = exAt - nowMs;
     if (diffMs <= 0) return 'expired';
-    if (diffMs <= 60 * 60 * 1000) return 'countdown'; // within last 1 hour
     return 'active';
 };
 
-const formatCountdown = (ms) => {
-    if (ms <= 0) return '00:00';
-    const totalSec = Math.floor(ms / 1000);
-    const min = Math.floor(totalSec / 60);
-    const sec = totalSec % 60;
-    return `${String(min).padStart(2, '0')}:${String(sec).padStart(2, '0')}`;
+const formatFullThaiDateTime = (ms) => {
+    const d = new Date(ms);
+    const day = d.getDate();
+    const month = TH_MONTHS[d.getMonth()];
+    const year = d.getFullYear() + 543;
+    const time = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+    return `${day} ${month} ${year} ${time}`;
+};
+
+const formatTimeRemaining = (ms) => {
+    if (ms <= 0) return '0 นาที';
+    const totalMin = Math.floor(ms / (1000 * 60));
+    const days = Math.floor(totalMin / (60 * 24));
+    const hours = Math.floor((totalMin % (60 * 24)) / 60);
+    const mins = totalMin % 60;
+
+    let parts = [];
+    if (days > 0) parts.push(`${days} วัน`);
+    if (hours > 0) parts.push(`${hours} ชม.`);
+    if (mins > 0 || parts.length === 0) parts.push(`${mins} นาที`);
+    
+    return parts.join(' ');
 };
 
 // ─── Expiration Badge ─────────────────────────────────────────────────────────
@@ -159,34 +183,83 @@ const ExpirationBadge = ({ task, nowMs }) => {
     const status = getExpirationStatus(task, nowMs);
     if (!status) return null;
 
+    const exAt = getExpiresAtMs(task);
+
     if (status === 'expired') {
         return (
-            <span className="expire-badge expire-badge--expired">🔴 หมดเวลา</span>
-        );
-    }
-    if (status === 'countdown') {
-        const remaining = getExpiresAtMs(task) - nowMs;
-        return (
-            <span className="expire-badge expire-badge--countdown">
-                ⏳ {formatCountdown(remaining)}
+            <span className="expire-badge expire-badge--expired" title={`หมดเมื่อ ${formatFullThaiDateTime(exAt)}`}>
+                🔴 หมดเมื่อ {formatFullThaiDateTime(exAt)}
             </span>
         );
     }
-    return null;
+    
+    // active status
+    const remaining = exAt - nowMs;
+    return (
+        <span className="expire-badge expire-badge--countdown">
+            ⏳ จะหมดเวลาในอีก {formatTimeRemaining(remaining)}
+        </span>
+    );
 };
 
 // ─── Edit Modal ───────────────────────────────────────────────────────────────
-const EditModal = ({ task, onClose, onSave }) => {
+const EditModal = ({ task, categories, onClose, onSave }) => {
     const [title, setTitle] = useState(task.title || '');
     const [dueDate, setDueDate] = useState(task.dueDate || '');
     const [dueTime, setDueTime] = useState(task.dueTime || '');
     const [categoryId, setCategoryId] = useState(task.categoryId || '');
+    
+    const [isTimeLimited, setIsTimeLimited] = useState(!!task.expiresAt);
+    const [expiresAtDate, setExpiresAtDate] = useState('');
+    const [expiresAtTime, setExpiresAtTime] = useState('');
+    const [expirationMode, setExpirationMode] = useState(task.expirationMode || 'A');
+
+    useEffect(() => {
+        if (task.expiresAt) {
+            const d = new Date(task.expiresAt);
+            setExpiresAtDate(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`);
+            setExpiresAtTime(`${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`);
+        }
+    }, [task]);
+
+    const isExpired = useMemo(() => {
+        if (!task.expiresAt) return false;
+        return new Date(task.expiresAt).getTime() <= Date.now();
+    }, [task]);
 
     const handleSubmit = (e) => {
         e.preventDefault();
+        if (isExpired) return;
         if (!title.trim()) return;
-        onSave(task.id, { title: title.trim(), dueDate, dueTime, categoryId });
+
+        let finalExpiresAt = null;
+        if (isTimeLimited && expiresAtDate && expiresAtTime) {
+            finalExpiresAt = new Date(`${expiresAtDate}T${expiresAtTime}`).toISOString();
+        }
+
+        onSave(task.id, { 
+            title: title.trim(), 
+            dueDate, 
+            dueTime, 
+            categoryId,
+            expiresAt: isTimeLimited ? finalExpiresAt : null,
+            expirationMode: isTimeLimited ? expirationMode : null
+        });
     };
+
+    if (isExpired) {
+        return (
+            <div className="modal-overlay" onClick={onClose}>
+                <div className="modal-box" onClick={(e) => e.stopPropagation()}>
+                    <h3>🔴 งานนี้หมดเวลาแล้ว</h3>
+                    <p style={{marginBottom: '1rem'}}>ไม่สามารถแก้ไขรายละเอียดได้ คุณสามารถลบงานนี้ได้เท่านั้น</p>
+                    <div className="modal-actions">
+                         <button type="button" className="btn" onClick={onClose}>ปิด</button>
+                    </div>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="modal-overlay" onClick={onClose}>
@@ -210,6 +283,52 @@ const EditModal = ({ task, onClose, onSave }) => {
                         <input type="date" className="input-field" value={dueDate} onChange={(e) => setDueDate(e.target.value)} style={{ flex: 1 }} />
                         <input type="time" className="input-field" value={dueTime} onChange={(e) => setDueTime(e.target.value)} style={{ flex: 1 }} />
                     </div>
+
+                    <div style={{marginTop: '0.5rem', borderTop: '1px solid #eee', paddingTop: '0.5rem'}}>
+                        <label className="expire-toggle-label">
+                            <input
+                                type="checkbox"
+                                checked={isTimeLimited}
+                                onChange={(e) => setIsTimeLimited(e.target.checked)}
+                                style={{ accentColor: 'var(--primary-color)' }}
+                            />
+                            <span>⏱ ตั้งเวลาหมดอายุ</span>
+                        </label>
+
+                        {isTimeLimited && (
+                            <div className="expire-fields">
+                                <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '0.5rem' }}>
+                                    <input
+                                        type="date"
+                                        className="input-field"
+                                        value={expiresAtDate}
+                                        onChange={(e) => setExpiresAtDate(e.target.value)}
+                                        required={isTimeLimited}
+                                        style={{ flex: 1 }}
+                                    />
+                                    <input
+                                        type="time"
+                                        className="input-field"
+                                        value={expiresAtTime}
+                                        onChange={(e) => setExpiresAtTime(e.target.value)}
+                                        required={isTimeLimited}
+                                        style={{ flex: 1 }}
+                                    />
+                                </div>
+                                <div className="expire-mode-row">
+                                    <label className="expire-mode-option">
+                                        <input type="radio" value="A" checked={expirationMode === 'A'} onChange={() => setExpirationMode('A')} />
+                                        <span>A — แจ้งเตือน</span>
+                                    </label>
+                                    <label className="expire-mode-option">
+                                        <input type="radio" value="B" checked={expirationMode === 'B'} onChange={() => setExpirationMode('B')} />
+                                        <span>B — ลบอัตโนมัติ</span>
+                                    </label>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+
                     <div className="modal-actions">
                         <button type="button" className="btn" style={{ background: '#b2bec3' }} onClick={onClose}>ยกเลิก</button>
                         <button type="submit" className="btn">บันทึก</button>
@@ -222,8 +341,9 @@ const EditModal = ({ task, onClose, onSave }) => {
 
 // ─── Sortable Task Item ───────────────────────────────────────────────────────
 const SortableTaskItem = ({ task, categories, nowMs, onToggle, onDelete, onEdit }) => {
-    const category = categories?.find(c => c.id === task.categoryId);
     const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: task.id });
+    const category = categories?.find(c => c.id === task.categoryId);
+    const isExpired = getExpirationStatus(task, nowMs) === 'expired';
 
     const style = {
         transform: CSS.Transform.toString(transform),
@@ -235,7 +355,7 @@ const SortableTaskItem = ({ task, categories, nowMs, onToggle, onDelete, onEdit 
         <li
             ref={setNodeRef}
             style={style}
-            className={`task-item${task.completed ? ' completed' : ''}`}
+            className={`task-item${task.completed ? ' completed' : ''} ${isExpired ? ' expired-item' : ''}`}
         >
             <span
                 className="drag-handle"
@@ -249,6 +369,8 @@ const SortableTaskItem = ({ task, categories, nowMs, onToggle, onDelete, onEdit 
                     className="task-checkbox"
                     checked={task.completed}
                     onChange={() => onToggle(task.id, task.completed)}
+                    disabled={isExpired && !task.completed}
+                    title={isExpired && !task.completed ? "งานหมดเวลาแล้ว" : ""}
                 />
                 <div className="task-info">
                     <div className={`task-title${task.completed ? ' done' : ''}`}>
@@ -257,6 +379,11 @@ const SortableTaskItem = ({ task, categories, nowMs, onToggle, onDelete, onEdit 
                             <span className="category-tag" style={{ background: category.color + '20', color: category.color, border: `1px solid ${category.color}40` }}>
                                 <span className="category-dot" style={{ background: category.color }} />
                                 {category.name}
+                            </span>
+                        )}
+                        {task.expirationMode === 'B' && !task.completed && (
+                            <span className="category-tag" style={{ background: '#d6303120', color: '#d63031', border: `1px solid #d6303140` }}>
+                                🗑️ ลบอัตโนมัติ
                             </span>
                         )}
                         <ExpirationBadge task={task} nowMs={nowMs} />
@@ -289,7 +416,9 @@ const Dashboard = () => {
     const [newTaskTime, setNewTaskTime] = useState('');
     const [newCategoryId, setNewCategoryId] = useState('');
     const [categories, setCategories] = useState([]);
-    const [categoryFilterId, setCategoryFilterId] = useState('all');
+    const [categoryFilters, setCategoryFilters] = useState([]);
+    const [isCategoryDropdownOpen, setIsCategoryDropdownOpen] = useState(false);
+    const dropdownRef = useRef(null);
     const [timeLimited, setTimeLimited] = useState(false);
     const [expirationDate, setExpirationDate] = useState('');
     const [expirationTime, setExpirationTime] = useState('');
@@ -303,13 +432,53 @@ const Dashboard = () => {
 
     const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
 
+    // ── Filtering & Analytics ──────────────────────────────────────────────────
+    const range = useMemo(() => getRangeForPeriod(period, anchor), [period, anchor]);
+
+    const periodFiltered = useMemo(() => {
+        return tasks.filter((task) => {
+            if (!range) return true;
+            if (!task.dueDate) return false;
+            const due = new Date(task.dueDate);
+            return due >= range.start && due <= range.end;
+        });
+    }, [tasks, range]);
+
+    const graphTasks = periodFiltered;
+
+    const filteredTasks = useMemo(() => {
+        return periodFiltered.filter((task) => {
+            const isExpired = getExpirationStatus(task, nowMs) === 'expired';
+            
+            let matchStatus = true;
+            if (filter === 'active') matchStatus = !task.completed && !isExpired;
+            else if (filter === 'completed') matchStatus = task.completed;
+            else if (filter === 'expired') matchStatus = isExpired && !task.completed;
+            
+            let matchCategory = true;
+            if (categoryFilters.length > 0) {
+                const hasNoCategory = !task.categoryId;
+                const isUncategorizedSelected = categoryFilters.includes('uncategorized');
+                if (hasNoCategory) matchCategory = isUncategorizedSelected;
+                else matchCategory = categoryFilters.includes(task.categoryId);
+            }
+            
+            return matchStatus && matchCategory;
+        });
+    }, [periodFiltered, filter, categoryFilters, nowMs]);
+
+    const graphExpired = useMemo(() => graphTasks.filter((t) => !t.completed && getExpirationStatus(t, nowMs) === 'expired').length, [graphTasks, nowMs]);
+    const graphCompleted = useMemo(() => graphTasks.filter((t) => t.completed).length, [graphTasks]);
+    const graphTotal = graphTasks.length;
+    const graphActive = graphTotal - graphCompleted - graphExpired;
+
     // Tick clock every second for countdown
     useEffect(() => {
         const timer = setInterval(() => setNowMs(Date.now()), 1000);
         return () => clearInterval(timer);
     }, []);
 
-    // Auto-delete expired Mode-B tasks (check every 30 s)
+    // Auto-delete expired Mode-B tasks
     useEffect(() => {
         const check = async () => {
             const now = Date.now();
@@ -327,6 +496,17 @@ const Dashboard = () => {
     }, [tasks]);
 
     useEffect(() => {
+        const handleClickOutside = (event) => {
+            if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+                setIsCategoryDropdownOpen(false);
+            }
+        };
+        if (isCategoryDropdownOpen) document.addEventListener('mousedown', handleClickOutside);
+        else document.removeEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, [isCategoryDropdownOpen]);
+
+    useEffect(() => {
         let unsubscribe;
         if (userData?.role === 'admin') {
             unsubscribe = subscribeToAllTasks(setTasks);
@@ -340,11 +520,20 @@ const Dashboard = () => {
         };
     }, [user, userData]);
 
+    // Seed default categories
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            if (user && categories.length === 0) {
+                 DEFAULT_CATEGORIES.forEach(c => addCategory(c, user));
+            }
+        }, 2000);
+        return () => clearTimeout(timer);
+    }, [user, categories.length]);
+
     const handlePeriodChange = (p) => { setPeriod(p); setAnchor(isoToday()); };
     const handleNavigate = (dir) => setAnchor((prev) => navigateAnchor(period, prev, dir));
     const handleToday = () => setAnchor(isoToday());
 
-    // ── Add Task ───────────────────────────────────────────────────────────────
     const handleAdd = async (e) => {
         e.preventDefault();
         if (!newTaskTitle.trim()) return;
@@ -402,7 +591,7 @@ const Dashboard = () => {
         }
     };
 
-    // ── Drag & Drop ────────────────────────────────────────────────────────────
+    // ── Drag & Drop Handlers for @dnd-kit ──
     const handleDragStart = ({ active }) => setActiveId(active.id);
 
     const handleDragEnd = useCallback(async ({ active, over }) => {
@@ -413,41 +602,16 @@ const Dashboard = () => {
             const oldIndex = prev.findIndex((t) => t.id === active.id);
             const newIndex = prev.findIndex((t) => t.id === over.id);
             const reordered = arrayMove(prev, oldIndex, newIndex);
-            // Persist only the visible reordering
             updateTaskOrder(reordered).catch(() => toast.error('ไม่สามารถบันทึกการเรียงลำดับได้'));
             return reordered;
         });
     }, []);
 
-    // ── Filtering ──────────────────────────────────────────────────────────────
-    const range = getRangeForPeriod(period, anchor);
-
-    // Date-range filtered (used for BOTH list and graph)
-    const periodFiltered = tasks.filter((task) => {
-        if (!range) return true;
-        if (!task.dueDate) return false;
-        const due = new Date(task.dueDate);
-        return due >= range.start && due <= range.end;
-    });
-
-    // Graph always shows total of periodFiltered (ignores status filter)
-    const graphTasks = periodFiltered;
-
-    // List further filtered by status and category
-    const filteredTasks = periodFiltered.filter((task) => {
-        const matchStatus = filter === 'all' || (filter === 'completed' ? task.completed : !task.completed);
-        const matchCategory = categoryFilterId === 'all' || task.categoryId === categoryFilterId;
-        return matchStatus && matchCategory;
-    });
-
-    // ── Analytics (graph always based on total, not filtered) ─────────────────
-    const graphCompleted = graphTasks.filter((t) => t.completed).length;
-    const graphTotal = graphTasks.length;
     const chartData = {
-        labels: ['เสร็จแล้ว', 'ยังค้างอยู่'],
+        labels: ['เสร็จแล้ว', 'ยังค้างอยู่', 'หมดเวลา'],
         datasets: [{
-            data: [graphCompleted, graphTotal - graphCompleted],
-            backgroundColor: ['#00b894', '#bedbf5e3'],
+            data: [graphCompleted, graphActive, graphExpired],
+            backgroundColor: ['#00b894', '#bedbf5e3', '#ff7675'],
             borderWidth: 0,
         }],
     };
@@ -458,7 +622,6 @@ const Dashboard = () => {
 
     return (
         <div className="container">
-            {/* Header */}
             <header className="dashboard-header">
                 <div>
                     <h1>📋 สวัสดี, {displayName}!</h1>
@@ -482,9 +645,7 @@ const Dashboard = () => {
             </header>
 
             <div className="dashboard-grid">
-                {/* ── Task Section ── */}
                 <section className="glass-panel" style={{ padding: '1.5rem' }}>
-                    {/* Add Task Form */}
                     <form onSubmit={handleAdd} className="add-task-form-wrap">
                         <div className="add-task-row">
                             <input
@@ -507,7 +668,7 @@ const Dashboard = () => {
                                 onChange={(e) => setNewTaskTime(e.target.value)}
                                 title="เวลาครบกำหนด"
                             />
-                            {/* <select
+                            <select
                                 className="add-task-date"
                                 value={newCategoryId}
                                 onChange={(e) => setNewCategoryId(e.target.value)}
@@ -517,11 +678,10 @@ const Dashboard = () => {
                                 {categories.map((c) => (
                                     <option key={c.id} value={c.id}>{c.name}</option>
                                 ))}
-                            </select> */}
+                            </select>
                             <button type="submit" className="btn">+ เพิ่ม</button>
                         </div>
 
-                        {/* Time-limited toggle */}
                         <label className="expire-toggle-label">
                             <input
                                 type="checkbox"
@@ -554,21 +714,19 @@ const Dashboard = () => {
                                     />
                                 </div>
                                 <div className="expire-mode-row">
-                                    <span style={{ fontSize: '0.82rem', opacity: 0.7 }}>โหมด:</span>
                                     <label className="expire-mode-option">
-                                        <input type="radio" name="expMode" value="A" checked={expirationMode === 'A'} onChange={() => setExpirationMode('A')} />
-                                        <span>A — แสดงสถานะ "หมดเวลา"</span>
+                                        <input type="radio" value="A" checked={expirationMode === 'A'} onChange={() => setExpirationMode('A')} />
+                                        <span>A — แจ้งเตือน</span>
                                     </label>
                                     <label className="expire-mode-option">
-                                        <input type="radio" name="expMode" value="B" checked={expirationMode === 'B'} onChange={() => setExpirationMode('B')} />
-                                        <span>B — นับถอยหลัง แล้วลบอัตโนมัติ</span>
+                                        <input type="radio" value="B" checked={expirationMode === 'B'} onChange={() => setExpirationMode('B')} />
+                                        <span>B — ลบอัตโนมัติ</span>
                                     </label>
                                 </div>
                             </div>
                         )}
                     </form>
 
-                    {/* Period Tabs */}
                     <div className="period-tabs">
                         {Object.entries(PERIOD_LABELS).map(([key, label]) => (
                             <button
@@ -581,7 +739,6 @@ const Dashboard = () => {
                         ))}
                     </div>
 
-                    {/* Date Navigator */}
                     {period !== 'all' && (
                         <div className="date-navigator">
                             <button className="date-nav-btn" onClick={() => handleNavigate(-1)} title="ก่อนหน้า">‹</button>
@@ -593,9 +750,8 @@ const Dashboard = () => {
                         </div>
                     )}
 
-                    {/* Status Filter */}
                     <div className="filter-tabs">
-                        {[['all', 'ทั้งหมด'], ['active', 'ค้างอยู่'], ['completed', 'เสร็จแล้ว']].map(([key, label]) => (
+                        {[['all', 'ทั้งหมด'], ['active', 'ค้างอยู่'], ['completed', 'เสร็จแล้ว'], ['expired', 'หมดเวลา']].map(([key, label]) => (
                             <button
                                 key={key}
                                 className={`filter-tab${filter === key ? ' active' : ''}`}
@@ -606,27 +762,65 @@ const Dashboard = () => {
                         ))}
                     </div>
 
-                    {/* Category Filter Bar */}
-                    <div className="category-filter-bar">
-                        <button
-                            className={`category-filter-btn ${categoryFilterId === 'all' ? 'active' : ''}`}
-                            onClick={() => setCategoryFilterId('all')}
+                    <div className="category-filter-bar-wrap" ref={dropdownRef}>
+                        <div 
+                            className="category-filter-summary" 
+                            onClick={() => setIsCategoryDropdownOpen(!isCategoryDropdownOpen)}
                         >
-                            ทั้งหมด
-                        </button>
-                        {categories.map((cat) => (
-                            <button
-                                key={cat.id}
-                                className={`category-filter-btn ${categoryFilterId === cat.id ? 'active' : ''}`}
-                                onClick={() => setCategoryFilterId(cat.id)}
-                            >
-                                <div className="category-dot" style={{ background: cat.color }} />
-                                {cat.name}
-                            </button>
-                        ))}
+                            <span className="filter-icon">🏷️</span>
+                            <span className="filter-label">
+                                {categoryFilters.length === 0 
+                                    ? 'หมวดหมู่ทั้งหมด' 
+                                    : `เลือกอยู่ ${categoryFilters.length} หมวดหมู่`}
+                            </span>
+                            <span className={`dropdown-arrow ${isCategoryDropdownOpen ? 'open' : ''}`}>▼</span>
+                        </div>
+                        
+                        {isCategoryDropdownOpen && (
+                            <div className="category-dropdown-content">
+                                <label className={`dropdown-item ${categoryFilters.length === 0 ? 'active' : ''}`}>
+                                    <input 
+                                        type="checkbox" 
+                                        checked={categoryFilters.length === 0}
+                                        onChange={() => setCategoryFilters([])}
+                                    />
+                                    <span>ทั้งหมด</span>
+                                </label>
+                                <label className={`dropdown-item ${categoryFilters.includes('uncategorized') ? 'active' : ''}`}>
+                                    <input 
+                                        type="checkbox" 
+                                        checked={categoryFilters.includes('uncategorized')}
+                                        onChange={() => {
+                                            setCategoryFilters(prev => 
+                                                prev.includes('uncategorized') 
+                                                    ? prev.filter(id => id !== 'uncategorized') 
+                                                    : [...prev, 'uncategorized']
+                                            );
+                                        }}
+                                    />
+                                    <span>ไม่มีหมวดหมู่</span>
+                                </label>
+                                {categories.map(cat => (
+                                    <label key={cat.id} className={`dropdown-item ${categoryFilters.includes(cat.id) ? 'active' : ''}`}>
+                                        <input 
+                                            type="checkbox" 
+                                            checked={categoryFilters.includes(cat.id)}
+                                            onChange={() => {
+                                                setCategoryFilters(prev => 
+                                                    prev.includes(cat.id) 
+                                                        ? prev.filter(id => id !== cat.id) 
+                                                        : [...prev, cat.id]
+                                                );
+                                            }}
+                                        />
+                                        <div className="category-dot" style={{ background: cat.color }} />
+                                        <span>{cat.name}</span>
+                                    </label>
+                                ))}
+                            </div>
+                        )}
                     </div>
 
-                    {/* Task List */}
                     {filteredTasks.length === 0 ? (
                         <div className="empty-state">
                             {period !== 'all' ? `ไม่มีงานใน${PERIOD_LABELS[period]}นี้` : 'ยังไม่มีงาน — เพิ่มงานแรกของคุณ!'}
@@ -667,7 +861,6 @@ const Dashboard = () => {
                     )}
                 </section>
 
-                {/* ── Analytics Section ── */}
                 <aside className="glass-panel analytics-panel">
                     <h3>📊 สถิติ</h3>
                     <div className="analytics-chart-wrap" style={{ position: 'relative', height: '190px' }}>
@@ -689,10 +882,10 @@ const Dashboard = () => {
                 </aside>
             </div>
 
-            {/* Edit Modal */}
             {editingTask && (
                 <EditModal
                     task={editingTask}
+                    categories={categories}
                     onClose={() => setEditingTask(null)}
                     onSave={handleSaveEdit}
                 />

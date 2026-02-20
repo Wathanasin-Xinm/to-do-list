@@ -36,6 +36,67 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 
+const TH_MONTHS = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
+
+const getExpiresAtMs = (task) => {
+    if (!task.expiresAt) return null;
+    return new Date(task.expiresAt).getTime();
+};
+
+const getExpirationStatus = (task, nowMs) => {
+    const exAt = getExpiresAtMs(task);
+    if (!exAt) return null;
+    const diffMs = exAt - nowMs;
+    if (diffMs <= 0) return 'expired';
+    return 'active';
+};
+
+const formatFullThaiDateTime = (ms) => {
+    const d = new Date(ms);
+    const day = d.getDate();
+    const month = TH_MONTHS[d.getMonth()];
+    const year = d.getFullYear() + 543;
+    const time = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+    return `${day} ${month} ${year} ${time}`;
+};
+
+const formatTimeRemaining = (ms) => {
+    if (ms <= 0) return '0 นาที';
+    const totalMin = Math.floor(ms / (1000 * 60));
+    const days = Math.floor(totalMin / (60 * 24));
+    const hours = Math.floor((totalMin % (60 * 24)) / 60);
+    const mins = totalMin % 60;
+
+    let parts = [];
+    if (days > 0) parts.push(`${days} วัน`);
+    if (hours > 0) parts.push(`${hours} ชม.`);
+    if (mins > 0 || parts.length === 0) parts.push(`${mins} นาที`);
+    
+    return parts.join(' ');
+};
+
+const ExpirationBadge = ({ task, nowMs }) => {
+    const status = getExpirationStatus(task, nowMs);
+    if (!status) return null;
+
+    const exAt = getExpiresAtMs(task);
+
+    if (status === 'expired') {
+        return (
+            <div className={`expire-badge expire-badge--expired`} style={{ fontSize: '0.75rem', marginTop: '0.2rem' }}>
+                🔴 หมดเมื่อ {formatFullThaiDateTime(exAt)}
+            </div>
+        );
+    }
+    
+    const remaining = exAt - nowMs;
+    return (
+        <div className={`expire-badge expire-badge--countdown`} style={{ fontSize: '0.75rem', marginTop: '0.2rem' }}>
+            ⏳ จะหมดเวลาในอีก {formatTimeRemaining(remaining)}
+        </div>
+    );
+};
+
 // ─── Date Helpers ─────────────────────────────────────────────────────────────
 const formatDate = (val) => {
     if (!val) return '—';
@@ -71,19 +132,17 @@ const isSameYear = (d1, d2) => d1.getFullYear() === d2.getFullYear();
 // ─── Sortable Row Wrapper ─────────────────────────────────────────────────────
 const SortableRow = ({ id, children }) => {
     const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
+    const style = {
+        transform: CSS.Transform.toString(transform),
+        transition,
+        opacity: isDragging ? 0.4 : 1,
+        background: isDragging ? 'var(--bg-panel)' : 'transparent',
+        zIndex: isDragging ? 1 : 0,
+        position: 'relative'
+    };
     return (
-        <tr
-            ref={setNodeRef}
-            style={{
-                transform: CSS.Transform.toString(transform),
-                transition,
-                opacity: isDragging ? 0.4 : 1,
-            }}
-        >
-            <td style={{ width: '28px', cursor: 'grab', fontSize: '1.1rem', opacity: 0.4, userSelect: 'none' }}
-                {...attributes} {...listeners} title="ลากเพื่อเรียงลำดับ">
-                ⠿
-            </td>
+        <tr ref={setNodeRef} style={style}>
+            <td className="drag-handle" {...attributes} {...listeners} title="ลากเพื่อเรียงลำดับ">⠿</td>
             {children}
         </tr>
     );
@@ -368,6 +427,7 @@ const PERIODS = [
 ];
 
 const AdminPanel = () => {
+    const { user } = useAuth();
     const [activeTab, setActiveTab] = useState('tasks');
     const [users, setUsers] = useState([]);
     const [tasks, setTasks] = useState([]);
@@ -385,12 +445,58 @@ const AdminPanel = () => {
     const [showAddCategory, setShowAddCategory] = useState(false);
     const [editingCategory, setEditingCategory] = useState(null);
     const [searchUser, setSearchUser] = useState('');
+    const [activeId, setActiveId] = useState(null);
+    const [nowMs, setNowMs] = useState(Date.now());
 
     const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
 
+    // ── Timer ─────────────────────────────────────────────────────────────
     useEffect(() => {
-        const unsub1 = subscribeToAllUsers(setUsers);
-        const unsub2 = subscribeToAllTasksAdmin(setTasks);
+        const timer = setInterval(() => setNowMs(Date.now()), 1000);
+        return () => clearInterval(timer);
+    }, []);
+
+    // ── Filtered Tasks ─────────────────────────────────────────────────────────
+    const filteredTasks = useMemo(() => {
+        const now = new Date(nowMs);
+        return tasks.filter((t) => {
+            const matchUser = selectedUserIds.length === 0 || selectedUserIds.includes(t.ownerId);
+            let matchPeriod = true;
+            if (period !== 'all') {
+                const taskDate = getTaskDate(t);
+                if (!taskDate) {
+                    matchPeriod = false;
+                } else if (period === 'day') {
+                    matchPeriod = isSameDay(taskDate, now);
+                } else if (period === 'week') {
+                    matchPeriod = isSameWeek(taskDate, now);
+                } else if (period === 'month') {
+                    matchPeriod = isSameMonth(taskDate, now);
+                } else if (period === 'year') {
+                    matchPeriod = isSameYear(taskDate, now);
+                }
+            }
+            const matchSearch = !searchTask || t.title.toLowerCase().includes(searchTask.toLowerCase());
+            const matchStatus =
+                filterStatus === 'all' ||
+                (filterStatus === 'done' && t.completed) ||
+                (filterStatus === 'pending' && !t.completed);
+            return matchUser && matchPeriod && matchSearch && matchStatus;
+        });
+    }, [tasks, selectedUserIds, period, searchTask, filterStatus, nowMs]);
+
+    const filteredUsers = useMemo(() => {
+        if (!searchUser) return users;
+        return users.filter(
+            (u) =>
+                u.nickname?.toLowerCase().includes(searchUser.toLowerCase()) ||
+                u.email?.toLowerCase().includes(searchUser.toLowerCase())
+        );
+    }, [users, searchUser]);
+
+    useEffect(() => {
+        const unsub1 = subscribeToAllUsers((uArr) => setUsers(uArr));
+        const unsub2 = subscribeToAllTasksAdmin((tArr) => setTasks(tArr));
         const unsub3 = subscribeToAllCategories(setCategories);
         return () => { unsub1(); unsub2(); unsub3(); };
     }, []);
@@ -420,9 +526,6 @@ const AdminPanel = () => {
         try {
             await updateUserAdmin(uid, data);
             toast.success('อัปเดตผู้ใช้สำเร็จ');
-            if (data.password) {
-                toast.info('⚠️ การเปลี่ยนรหัสผ่านต้องใช้ Firebase Admin SDK — บันทึกข้อมูลอื่นแล้ว');
-            }
             setEditingUser(null);
         } catch {
             toast.error('เกิดข้อผิดพลาด');
@@ -501,9 +604,13 @@ const AdminPanel = () => {
         }
     };
 
-    // ── Drag & Drop ────────────────────────────────────────────────────────────
+    // ── Drag & Drop Handlers ──────────────────────────────────────────────────
+    const handleDragStart = ({ active }) => setActiveId(active.id);
+
     const handleTaskDragEnd = useCallback(async ({ active, over }) => {
+        setActiveId(null);
         if (!over || active.id === over.id) return;
+
         setTasks((prev) => {
             const oldIndex = prev.findIndex((t) => t.id === active.id);
             const newIndex = prev.findIndex((t) => t.id === over.id);
@@ -514,7 +621,9 @@ const AdminPanel = () => {
     }, []);
 
     const handleUserDragEnd = useCallback(async ({ active, over }) => {
+        setActiveId(null);
         if (!over || active.id === over.id) return;
+
         setUsers((prev) => {
             const oldIndex = prev.findIndex((u) => u.uid === active.id);
             const newIndex = prev.findIndex((u) => u.uid === over.id);
@@ -524,45 +633,6 @@ const AdminPanel = () => {
         });
     }, []);
 
-    // ── Filtered Tasks ─────────────────────────────────────────────────────────
-    const now = new Date();
-    const filteredTasks = useMemo(() => {
-        return tasks.filter((t) => {
-            const matchUser = selectedUserIds.length === 0 || selectedUserIds.includes(t.ownerId);
-            let matchPeriod = true;
-            if (period !== 'all') {
-                const taskDate = getTaskDate(t);
-                if (!taskDate) {
-                    matchPeriod = false;
-                } else if (period === 'day') {
-                    matchPeriod = isSameDay(taskDate, now);
-                } else if (period === 'week') {
-                    matchPeriod = isSameWeek(taskDate, now);
-                } else if (period === 'month') {
-                    matchPeriod = isSameMonth(taskDate, now);
-                } else if (period === 'year') {
-                    matchPeriod = isSameYear(taskDate, now);
-                }
-            }
-            const matchSearch = !searchTask || t.title.toLowerCase().includes(searchTask.toLowerCase());
-            const matchStatus =
-                filterStatus === 'all' ||
-                (filterStatus === 'done' && t.completed) ||
-                (filterStatus === 'pending' && !t.completed);
-            return matchUser && matchPeriod && matchSearch && matchStatus;
-        });
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [tasks, selectedUserIds, period, searchTask, filterStatus]);
-
-    const filteredUsers = useMemo(() => {
-        if (!searchUser) return users;
-        return users.filter(
-            (u) =>
-                u.nickname?.toLowerCase().includes(searchUser.toLowerCase()) ||
-                u.email?.toLowerCase().includes(searchUser.toLowerCase())
-        );
-    }, [users, searchUser]);
-
     const stats = [
         { label: 'ผู้ใช้ทั้งหมด', value: users.length, icon: '👥', color: '#6c5ce7' },
         { label: 'งานทั้งหมด', value: tasks.length, icon: '📋', color: '#0984e3' },
@@ -570,9 +640,11 @@ const AdminPanel = () => {
         { label: 'งานค้างอยู่', value: tasks.filter((t) => !t.completed).length, icon: '⏳', color: '#e17055' },
     ];
 
+    const activeTask = tasks.find((t) => t.id === activeId);
+    const activeUser = users.find((u) => u.uid === activeId);
+
     return (
         <div className="admin-layout">
-            {/* Header */}
             <header className="admin-header-bar">
                 <div className="admin-header-left">
                     <div className="admin-header-icon">🛡️</div>
@@ -585,7 +657,6 @@ const AdminPanel = () => {
             </header>
 
             <div className="admin-content">
-                {/* Stat Cards */}
                 <div className="admin-stats-grid">
                     {stats.map((s) => (
                         <div key={s.label} className="admin-stat-card">
@@ -596,7 +667,6 @@ const AdminPanel = () => {
                     ))}
                 </div>
 
-                {/* Tabs */}
                 <div className="admin-tab-bar">
                     <button className={`admin-tab-btn${activeTab === 'tasks' ? ' active' : ''}`} onClick={() => setActiveTab('tasks')}>
                         📋 จัดการงาน <span className="admin-tab-count">{tasks.length}</span>
@@ -609,7 +679,6 @@ const AdminPanel = () => {
                     </button>
                 </div>
 
-                {/* Tasks Tab */}
                 {activeTab === 'tasks' && (
                     <div className="admin-panel-body">
                         <div className="admin-filters-row">
@@ -644,7 +713,6 @@ const AdminPanel = () => {
                         </div>
 
                         <div className="admin-task-body">
-                            {/* User checklist sidebar */}
                             <div className="admin-user-checklist">
                                 <div className="admin-checklist-header">
                                     <span>👤 กรองผู้ใช้</span>
@@ -674,7 +742,6 @@ const AdminPanel = () => {
                                 </div>
                             </div>
 
-                            {/* Task table */}
                             <div className="admin-task-main">
                                 <div className="admin-toolbar">
                                     <input
@@ -702,6 +769,7 @@ const AdminPanel = () => {
                                     <DndContext
                                         sensors={sensors}
                                         collisionDetection={closestCenter}
+                                        onDragStart={handleDragStart}
                                         onDragEnd={handleTaskDragEnd}
                                     >
                                         <SortableContext items={filteredTasks.map((t) => t.id)} strategy={verticalListSortingStrategy}>
@@ -728,6 +796,12 @@ const AdminPanel = () => {
                                                             <td style={{ maxWidth: '220px' }}>
                                                                 <span style={{ textDecoration: task.completed ? 'line-through' : 'none', opacity: task.completed ? 0.55 : 1 }}>
                                                                     {task.title}
+                                                                    {task.expirationMode === 'B' && !task.completed && (
+                                                                        <span style={{ fontSize: '0.7rem', background: '#d6303120', color: '#d63031', padding: '1px 4px', borderRadius: '4px', marginLeft: '0.4rem', border: '1px solid #d6303140' }}>
+                                                                            🗑️ ลบอัตโนมัติ
+                                                                        </span>
+                                                                    )}
+                                                                    <ExpirationBadge task={task} nowMs={nowMs} />
                                                                 </span>
                                                             </td>
                                                             <td>
@@ -756,6 +830,22 @@ const AdminPanel = () => {
                                                 </tbody>
                                             </table>
                                         </SortableContext>
+                                        <DragOverlay>
+                                            {activeTask ? (
+                                                <table className="admin-table">
+                                                    <tbody>
+                                                        <tr className="drag-overlay">
+                                                            <td className="drag-handle">⠿</td>
+                                                            <td>{activeTask.title}</td>
+                                                            <td>{activeTask.ownerNickname || activeTask.ownerEmail}</td>
+                                                            <td>{activeTask.dueDate}</td>
+                                                            <td>{activeTask.completed ? '✅ เสร็จ' : '⏳ ค้าง'}</td>
+                                                            <td></td>
+                                                        </tr>
+                                                    </tbody>
+                                                </table>
+                                            ) : null}
+                                        </DragOverlay>
                                     </DndContext>
                                 </div>
                             </div>
@@ -763,7 +853,6 @@ const AdminPanel = () => {
                     </div>
                 )}
 
-                {/* Users Tab */}
                 {activeTab === 'users' && (
                     <div className="admin-panel-body">
                         <div className="admin-toolbar">
@@ -783,6 +872,7 @@ const AdminPanel = () => {
                             <DndContext
                                 sensors={sensors}
                                 collisionDetection={closestCenter}
+                                onDragStart={handleDragStart}
                                 onDragEnd={handleUserDragEnd}
                             >
                                 <SortableContext items={filteredUsers.map((u) => u.uid)} strategy={verticalListSortingStrategy}>
@@ -834,12 +924,28 @@ const AdminPanel = () => {
                                         </tbody>
                                     </table>
                                 </SortableContext>
+                                <DragOverlay>
+                                    {activeUser ? (
+                                        <table className="admin-table">
+                                            <tbody>
+                                                <tr className="drag-overlay">
+                                                    <td className="drag-handle">⠿</td>
+                                                    <td>{activeUser.nickname || activeUser.email}</td>
+                                                    <td>{activeUser.email}</td>
+                                                    <td>{activeUser.role}</td>
+                                                    <td></td>
+                                                    <td></td>
+                                                    <td></td>
+                                                </tr>
+                                            </tbody>
+                                        </table>
+                                    ) : null}
+                                </DragOverlay>
                             </DndContext>
                         </div>
                     </div>
                 )}
 
-                {/* Categories Tab */}
                 {activeTab === 'categories' && (
                     <div className="admin-panel-body">
                         <div className="admin-toolbar">
@@ -847,7 +953,7 @@ const AdminPanel = () => {
                                 className="input-field"
                                 style={{ flex: 1, minWidth: '150px' }}
                                 placeholder="🔍 ค้นหาหมวดหมู่..."
-                                value={searchUser} // reusing searchUser state for simplicity or could add searchCategory
+                                value={searchUser}
                                 onChange={(e) => setSearchUser(e.target.value)}
                             />
                             <button className="btn" onClick={() => setShowAddCategory(true)}>+ เพิ่มหมวดหมู่</button>
@@ -896,7 +1002,6 @@ const AdminPanel = () => {
                 )}
             </div>
 
-            {/* Modals */}
             {showAddUser && <AddUserModal onClose={() => setShowAddUser(false)} onSave={handleAddUser} />}
             {editingUser && <EditUserModal user={editingUser} onClose={() => setEditingUser(null)} onSave={handleSaveUser} />}
             {showAddTask && <AddTaskModal users={users} categories={categories} onClose={() => setShowAddTask(false)} onSave={handleAddTask} />}
