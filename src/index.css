@@ -1677,6 +1677,11 @@ body.dark-mode .profile-section {
   .glass-panel {
     padding: 0.5rem;
   }
+
+  .analytics-panel {
+    position: relative;
+    z-index: -1;
+  }
 }
 
 @media (max-width: 600px) {
@@ -1792,6 +1797,7 @@ body.dark-mode .profile-section {
 }
 
 .category-filter-summary {
+  height: 100%;
   display: flex;
   align-items: center;
   gap: 0.75rem;

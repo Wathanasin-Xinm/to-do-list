@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import ReactDOM from 'react-dom';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { toast } from 'react-toastify';
@@ -21,7 +22,6 @@ import {
     deleteCategory,
 } from '../services/taskService';
 import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
-import ReactDOM from 'react-dom';
 
 const arrayMove = (array, from, to) => {
     const newArray = array.slice();
@@ -410,7 +410,7 @@ const CategoryModal = ({ category, onClose, onSave }) => {
                     </div>
                     <div className="modal-actions">
                         <button type="button" className="btn btn-ghost" onClick={onClose}>ยกเลิก</button>
-                        <button type="submit" className="btn" disabled={loading}>{loading ? '⏳ กำลังบันทึก...' : '💾 บันทึก'}</button>
+                        <button type="submit" className="btn" disabled={loading} style={{ borderRadius: '12px' }}>{loading ? '⏳ กำลังบันทึก...' : '💾 บันทึกหมวดหมู่'}</button>
                     </div>
                 </form>
             </div>
@@ -447,6 +447,10 @@ const AdminPanel = () => {
     const [editingCategory, setEditingCategory] = useState(null);
     const [searchUser, setSearchUser] = useState('');
     const [nowMs, setNowMs] = useState(Date.now());
+    
+    const [categoryFilters, setCategoryFilters] = useState([]);
+    const [isCategoryDropdownOpen, setIsCategoryDropdownOpen] = useState(false);
+    const dropdownRef = useRef(null);
 
     // ── Timer ─────────────────────────────────────────────────────────────
     useEffect(() => {
@@ -479,9 +483,17 @@ const AdminPanel = () => {
                 filterStatus === 'all' ||
                 (filterStatus === 'done' && t.completed) ||
                 (filterStatus === 'pending' && !t.completed);
-            return matchUser && matchPeriod && matchSearch && matchStatus;
+                
+            let matchCategory = true;
+            if (categoryFilters.length > 0) {
+                const hasNoCategory = !t.categoryId;
+                if (hasNoCategory) matchCategory = categoryFilters.includes('uncategorized');
+                else matchCategory = categoryFilters.includes(t.categoryId);
+            }
+
+            return matchUser && matchPeriod && matchSearch && matchStatus && matchCategory;
         });
-    }, [tasks, selectedUserIds, period, searchTask, filterStatus, nowMs]);
+    }, [tasks, selectedUserIds, period, searchTask, filterStatus, nowMs, categoryFilters]);
 
     const filteredUsers = useMemo(() => {
         if (!searchUser) return users;
@@ -498,6 +510,17 @@ const AdminPanel = () => {
         const unsub3 = subscribeToAllCategories(setCategories);
         return () => { unsub1(); unsub2(); unsub3(); };
     }, []);
+
+    useEffect(() => {
+        const handleClickOutside = (event) => {
+            if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+                setIsCategoryDropdownOpen(false);
+            }
+        };
+        if (isCategoryDropdownOpen) document.addEventListener('mousedown', handleClickOutside);
+        else document.removeEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, [isCategoryDropdownOpen]);
 
     const toggleUser = (uid) => setSelectedUserIds((prev) =>
         prev.includes(uid) ? prev.filter((id) => id !== uid) : [...prev, uid]
@@ -641,8 +664,6 @@ const AdminPanel = () => {
         { label: 'งานค้างอยู่', value: tasks.filter((t) => !t.completed).length, icon: '⏳', color: '#e17055' },
     ];
 
-    const activeTask = tasks.find((t) => t.id === activeId);
-    const activeUser = users.find((u) => u.uid === activeId);
 
     return (
         <div className="admin-layout">
@@ -710,6 +731,65 @@ const AdminPanel = () => {
                                         </button>
                                     ))}
                                 </div>
+                            </div>
+                            <div className="admin-filter-group" style={{ flex: 1, position: 'relative' }} ref={dropdownRef}>
+                                <span className="admin-filter-label">🏷️ หมวดหมู่</span>
+                                <div 
+                                    className="category-filter-summary" 
+                                    style={{ padding: '0.45rem 1rem', borderRadius: '10px', background: 'rgba(255, 255, 255, 0.6)' }}
+                                    onClick={() => setIsCategoryDropdownOpen(!isCategoryDropdownOpen)}
+                                >
+                                    <span className="filter-label" style={{ fontSize: '0.85rem' }}>
+                                        {categoryFilters.length === 0 
+                                            ? 'หมวดหมู่ทั้งหมด' 
+                                            : `เลือก ${categoryFilters.length} หมวดหมู่`}
+                                    </span>
+                                    <span className={`dropdown-arrow ${isCategoryDropdownOpen ? 'open' : ''}`}>▼</span>
+                                </div>
+                                
+                                {isCategoryDropdownOpen && (
+                                    <div className={`category-dropdown-content open`} style={{ top: 'calc(100% + 5px)', right: 0, left: 'auto', width: '240px' }}>
+                                        <label className={`dropdown-item ${categoryFilters.length === 0 ? 'active' : ''}`}>
+                                            <input 
+                                                type="checkbox" 
+                                                checked={categoryFilters.length === 0}
+                                                onChange={() => setCategoryFilters([])}
+                                            />
+                                            <span>ทั้งหมด</span>
+                                        </label>
+                                        <label className={`dropdown-item ${categoryFilters.includes('uncategorized') ? 'active' : ''}`}>
+                                            <input 
+                                                type="checkbox" 
+                                                checked={categoryFilters.includes('uncategorized')}
+                                                onChange={() => {
+                                                    setCategoryFilters(prev => 
+                                                        prev.includes('uncategorized') 
+                                                            ? prev.filter(id => id !== 'uncategorized') 
+                                                            : [...prev, 'uncategorized']
+                                                    );
+                                                }}
+                                            />
+                                            <span>ไม่มีหมวดหมู่</span>
+                                        </label>
+                                        {categories.map(cat => (
+                                            <label key={cat.id} className={`dropdown-item ${categoryFilters.includes(cat.id) ? 'active' : ''}`}>
+                                                <input 
+                                                    type="checkbox" 
+                                                    checked={categoryFilters.includes(cat.id)}
+                                                    onChange={() => {
+                                                        setCategoryFilters(prev => 
+                                                            prev.includes(cat.id) 
+                                                                ? prev.filter(id => id !== cat.id) 
+                                                                : [...prev, cat.id]
+                                                        );
+                                                    }}
+                                                />
+                                                <span className="category-dot" style={{ background: cat.color }} />
+                                                <span>{cat.name}</span>
+                                            </label>
+                                        ))}
+                                    </div>
+                                )}
                             </div>
                         </div>
 
@@ -942,7 +1022,13 @@ const AdminPanel = () => {
                                 value={searchUser}
                                 onChange={(e) => setSearchUser(e.target.value)}
                             />
-                            <button className="btn" onClick={() => setShowAddCategory(true)}>+ เพิ่มหมวดหมู่</button>
+                            <button 
+                                className="category-filter-summary" 
+                                style={{ padding: '0.65rem 1.25rem', borderRadius: '12px', background: 'var(--primary-color)', borderColor: 'transparent' }}
+                                onClick={() => setShowAddCategory(true)}
+                            >
+                                <span className="filter-label" style={{ color: 'white' }}>+ เพิ่มหมวดหมู่</span>
+                            </button>
                         </div>
 
                         <div className="admin-table-wrap">

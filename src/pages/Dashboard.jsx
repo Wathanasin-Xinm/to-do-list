@@ -418,6 +418,10 @@ const Dashboard = () => {
     const [anchor, setAnchor] = useState(isoToday());
     const [editingTask, setEditingTask] = useState(null);
     const [nowMs, setNowMs] = useState(Date.now());
+    
+    // Custom Dropdown for Add Task
+    const [isAddCategoryDropdownOpen, setIsAddCategoryDropdownOpen] = useState(false);
+    const addCategoryDropdownRef = useRef(null);
 
     // ── Filtering & Analytics ──────────────────────────────────────────────────
     const range = useMemo(() => getRangeForPeriod(period, anchor), [period, anchor]);
@@ -487,11 +491,14 @@ const Dashboard = () => {
             if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
                 setIsCategoryDropdownOpen(false);
             }
+            if (addCategoryDropdownRef.current && !addCategoryDropdownRef.current.contains(event.target)) {
+                setIsAddCategoryDropdownOpen(false);
+            }
         };
-        if (isCategoryDropdownOpen) document.addEventListener('mousedown', handleClickOutside);
+        if (isCategoryDropdownOpen || isAddCategoryDropdownOpen) document.addEventListener('mousedown', handleClickOutside);
         else document.removeEventListener('mousedown', handleClickOutside);
         return () => document.removeEventListener('mousedown', handleClickOutside);
-    }, [isCategoryDropdownOpen]);
+    }, [isCategoryDropdownOpen, isAddCategoryDropdownOpen]);
 
     useEffect(() => {
         let unsubscribe;
@@ -658,17 +665,42 @@ const Dashboard = () => {
                                 onChange={(e) => setNewTaskTime(e.target.value)}
                                 title="เวลาครบกำหนด"
                             />
-                            <select
-                                className="add-task-date"
-                                value={newCategoryId}
-                                onChange={(e) => setNewCategoryId(e.target.value)}
-                                style={{ width: 'auto', minWidth: '100px' }}
-                            >
-                                <option value="">🏷️ หมวดหมู่</option>
-                                {categories.map((c) => (
-                                    <option key={c.id} value={c.id}>{c.name}</option>
-                                ))}
-                            </select>
+                            <div className="add-task-category-wrap" ref={addCategoryDropdownRef} style={{ position: 'relative' }}>
+                                <div 
+                                    className="category-filter-summary" 
+                                    style={{ padding: '0.45rem 1rem', borderRadius: '10px', background: 'rgba(255, 255, 255, 0.4)', minWidth: '130px', border: '1px solid rgba(0,0,0,0.1)' }}
+                                    onClick={() => setIsAddCategoryDropdownOpen(!isAddCategoryDropdownOpen)}
+                                >
+                                    <span className="filter-label" style={{ fontSize: '0.85rem' }}>
+                                        {newCategoryId 
+                                            ? (categories.find(c => c.id === newCategoryId)?.name || '🏷️ หมวดหมู่') 
+                                            : '🏷️ หมวดหมู่'}
+                                    </span>
+                                    <span className={`dropdown-arrow ${isAddCategoryDropdownOpen ? 'open' : ''}`}>▼</span>
+                                </div>
+                                {isAddCategoryDropdownOpen && (
+                                    <div className="category-dropdown-content open" style={{ top: 'calc(100% + 5px)', width: '220px' }}>
+                                        <div 
+                                            className={`dropdown-item ${!newCategoryId ? 'active' : ''}`}
+                                            onClick={() => { setNewCategoryId(''); setIsAddCategoryDropdownOpen(false); }}
+                                            style={{ padding: '0.65rem 1rem' }}
+                                        >
+                                            <span>ไม่มีหมวดหมู่</span>
+                                        </div>
+                                        {categories.map(c => (
+                                            <div 
+                                                key={c.id} 
+                                                className={`dropdown-item ${newCategoryId === c.id ? 'active' : ''}`}
+                                                onClick={() => { setNewCategoryId(c.id); setIsAddCategoryDropdownOpen(false); }}
+                                                style={{ padding: '0.65rem 1rem' }}
+                                            >
+                                                <span className="category-dot" style={{ background: c.color }} />
+                                                <span>{c.name}</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
                             <button type="submit" className="btn">+ เพิ่ม</button>
                         </div>
 
