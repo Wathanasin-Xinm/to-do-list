@@ -3,7 +3,6 @@ import { useAuth } from '../context/AuthContext';
 import { Link } from 'react-router-dom';
 import {
     subscribeToTasks,
-    subscribeToAllTasks,
     addTask,
     toggleTaskCompletion,
     deleteTask,
@@ -501,18 +500,13 @@ const Dashboard = () => {
     }, [isCategoryDropdownOpen, isAddCategoryDropdownOpen]);
 
     useEffect(() => {
-        let unsubscribe;
-        if (userData?.role === 'admin') {
-            unsubscribe = subscribeToAllTasks(setTasks);
-        } else {
-            unsubscribe = subscribeToTasks(user, setTasks);
-        }
+        const unsubscribe = subscribeToTasks(user, setTasks);
         const unsubCat = subscribeToCategories(user, setCategories);
         return () => {
-            unsubscribe && unsubscribe();
+            unsubscribe();
             unsubCat();
         };
-    }, [user, userData]);
+    }, [user]);
 
     // Seed default categories
     useEffect(() => {

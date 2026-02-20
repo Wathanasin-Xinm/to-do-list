@@ -1841,7 +1841,7 @@ body.dark-mode .category-filter-summary {
   position: absolute;
   top: calc(100% + 8px);
   left: 0;
-  right: 0;
+  right: unset !important;
   background: #fff;
   border-radius: 14px;
   padding: 0.65rem;
